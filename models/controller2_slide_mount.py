@@ -8,20 +8,29 @@
     the bottom groove carries the snap hook. Prints front face down.
 
 Use:
+  0. Before the full print: print layout="fit_test" (B's flat frame) and hold it
+     against the controller to check the screw spacing and pilot size, and
+     layout="fit_coupon" (short rail/groove pairs at fit 0.12, 0.16, 0.20; marked
+     with 1, 2, 3 dimples) to pick the dovetail fit that slides without play.
   1. Screw the controller to B on the bench (all 4 screws reachable).
   2. Stick A to the cabinet wall and ceiling.
   3. Slide B + controller straight back onto A's rails until it clicks.
-  To remove: pull the controller straight forward firmly (~6 to 8 N estimated); the hook's
-  45-degree face lifts the tongue out of the notch.
+  To remove: pull the controller straight forward firmly (~5 to 8 N estimated); the hook's
+  45-degree face lifts the tongue out of the notch. Leave ~40 mm of cable slack
+  behind the controller so B can slide out.
 
-Loads: the dovetails carry the weight and the twisting from it (B can't pull
-away from the wall). Pushing back on the controller seats B against the rail
+Loads: the dovetails carry the weight and the twisting from it (B can only
+move away from the wall by the dovetail play, fit / sin(rail_angle)).
+A forward pull makes the hook's 45-degree face push B away from the wall by
+that play first, which eats into the hook engagement; the steep 30-degree
+dovetail flanks keep that loss small. Pushing back on the controller seats B against the rail
 ends. Only forward pulls load the snap.
 
 Snap tongue: a cantilever cut from B's side web, flexing away from the wall.
 B prints with the tongue vertical, so it bends across layers; deflection is
 at most 1.2 mm over ~29 mm (~0.5% strain, worst case with B pushed against
-the wall), and the slots end in round stop holes. The hook's retention face is 45
+the wall). Slots end square: round stop holes would narrow the tongue's root,
+which is where the across-layer bending peaks. The hook's retention face is 45
 degrees so it prints without support (it faces down in B's print).
 
 Screws: 4 controller screws (M3 / #4 thread-forming, 8 to 12 mm) into B's
@@ -37,7 +46,8 @@ In-use frame (mm):
   Y = up; y=0 is the bottom edge of the controller's front plate
   Z = depth, +Z back into the cabinet; z=0 is B's front face (seated)
 layout: "print", "assembled" (with a phantom controller if show_unit=True),
-or "fit_test" (B's 4 mm frame only, to check the screw spacing on the real unit).
+"fit_test" (B's 4 mm frame only, to check the screw spacing on the real unit),
+or "fit_coupon" (short dovetail rail/groove pairs at three fits).
 """
 import math
 
@@ -77,7 +87,7 @@ def build(
     cut_h: float = 70.0,
     hole_dx: float = 123.0,     # controller screw spacing (template + product photo)
     hole_dy: float = 67.0,
-    pilot_d: float = 2.5,       # M3 / #4 thread-forming
+    pilot_d: float = 2.6,       # M3 / #4 thread-forming (prints ~0.2 under); size to the real screws
     fit: float = 0.12,          # dovetail clearance normal to each face; tune with a test coupon
     min_wall: float = 1.2,
     # B (front piece)
@@ -88,12 +98,12 @@ def build(
     shelf_tip: float = 8.0,
     b_depth: float = 40.0,      # B's length front to back (= rail length)
     web_t: float = 2.4,         # B's side web; also the snap tongue thickness
-    groove_wall: float = 2.5,   # material beside each dovetail groove
+    groove_wall: float = 3.0,   # material beside each dovetail groove
     # Dovetail rails (on A)
     rail_h: float = 4.0,        # out from the wall plate
     rail_base: float = 6.0,     # width at the wall plate
-    rail_angle: float = 20.0,   # flank angle; also A's print overhang angle
-    rail_y: float = 22.0,       # rail centers from top/bottom edges
+    rail_angle: float = 30.0,   # flank angle (A's print overhang); steeper = less X play
+    rail_y: float = 18.5,       # rail centers from top/bottom edges (wider spacing = less sag)
     # Snap
     tongue_len: float = 33.0,
     hook: float = 1.2,          # hook height above the groove floor
@@ -101,9 +111,13 @@ def build(
     ret_angle: float = 45.0,    # retention face; <= 45 prints without support
     ramp_angle: float = 30.0,   # lead-in face
     slot_w: float = 0.6,
-    slot_relief_d: float = 1.6, # round stop hole at each slot end (eases the tongue root)
+    slot_overlap: float = 0.3,  # slots cut this far into the groove walls to free the tongue
+    hook_side_clear: float = 0.25,  # hook to groove flank
+    hook_end_gap: float = 0.5,  # hook's back end to B's back face
     notch_play: float = 0.25,   # hook to notch front wall when seated
-    lead: float = 1.5,          # 45-degree lead-in on rail fronts and groove mouths
+    lead: float = 1.0,          # 45-degree lead-in on rail fronts and groove mouths
+    coupon_fits: tuple = (0.12, 0.16, 0.20),
+    coupon_len: float = 15.0,
     # A (wall piece)
     wall_t: float = 3.0,
     depth: float = 100.0,       # wall plate depth
@@ -111,6 +125,7 @@ def build(
     ceiling_t: float = 3.0,
     ceiling_gap: float = 0.5,
     brace: float = 4.0,         # 45-degree brace under the ceiling flange
+    brace_gap: float = 2.0,     # brace starts this far behind B
     a_relief: float = 0.5,      # A starts this far behind B's front face, so the controller
                                 # plate (which overhangs B on the wall side) can't touch A
     layout: str = "print",
@@ -141,14 +156,14 @@ def build(
 
     gh = groove_half(xg)             # groove half width at its floor
     tr, tm = math.tan(math.radians(ret_angle)), math.tan(math.radians(ramp_angle))
-    z_hook_end = b_depth - 0.5
+    z_hook_end = b_depth - hook_end_gap
     zh = z_hook_end - hook / tm - hook_flat          # hook tip front edge
     z_root = b_depth - tongue_len
     lever = zh - z_root                               # tongue root to hook
     # Worst case: the ramp pushes B against the wall plate, so the tongue bends the full hook height
     strain = 1.5 * web_t * hook / lever ** 2
 
-    assert layout in ("print", "assembled", "fit_test"), f"unknown layout {layout!r}"
+    assert layout in ("print", "assembled", "fit_test", "fit_coupon"), f"unknown layout {layout!r}"
     assert body_w < cut_w and body_h < cut_h, "body must fit the opening"
     assert xw <= xl, "B's side web must sit on the frame's left leg"
     assert xw + hook + 0.5 <= -body_w / 2, "flexed tongue hits the controller body"
@@ -162,13 +177,42 @@ def build(
     assert rail_y - gh - groove_wall > shelf_t, "groove block runs into the shelf"
     assert z_root > frame_t + 2, "tongue too long for B"
     assert strain < 0.006, f"tongue strain {strain:.4f} too high for across-layer bending"
-    hook_half = groove_half(xg - hook) - 0.25         # hook half width: clears the flanks at its tip
+    hook_half = groove_half(xg - hook) - hook_side_clear  # hook half width: clears the flanks at its tip
+    x_play = fit / math.sin(math.radians(rail_angle))  # B's free travel away from the wall
+    engagement = hook - fit - x_play                   # hook engagement with B pulled off the wall
     assert hook_half >= 2.0, "hook too narrow"
-    assert groove_wall - 0.3 >= min_wall, "tongue slots leave too thin a groove wall"
-    assert depth >= b_depth + 2 + 5, "wall plate too short for the ceiling brace"
+    assert groove_wall - lead - slot_overlap >= min_wall, "flared mouth + slot leave too thin a groove wall"
+    assert depth >= b_depth + brace_gap + 5, "wall plate too short for the ceiling brace"
     assert a_relief > 0, "controller plate would touch A's front edge"
-    assert hook - fit >= 0.8, "too little hook engagement"
+    assert engagement >= 0.75, f"hook engagement {engagement:.2f} mm after dovetail play is too small"
     assert ret_angle <= 45, "retention face would overhang in B's print"
+
+    if layout == "fit_coupon":
+        # Short rail (A-style, base down) and groove block (B-style, groove vertical) per fit.
+        # Coupon k is marked with k+1 dimples. Pick the loosest fit that slides without
+        # wobble, then set `fit` to it.
+        def groove_half_f(x, f):
+            return rail_half(x) + f / math.cos(math.radians(rail_angle))
+
+        L, pieces = coupon_len, []
+        for k, f in enumerate(coupon_fits):
+            hw = groove_half_f(xt + f, f) + groove_wall
+            rail = _box(xa - wall_t, xa, -hw, hw, 0, L)
+            rail += _xy_prism([(xa - 0.01, -rail_half(xa)), (xt, -rail_half(xt)),
+                               (xt, rail_half(xt)), (xa - 0.01, rail_half(xa))], 0, L)
+            for i in range(k + 1):
+                rail -= Pos(xa, hw - 1.5, 3 + 3 * i) * (Rot(0, 90, 0) * Cylinder(0.6, 2))
+            gx0, gx1 = xa + f, xt + f + web_t
+            groove = _box(gx0, gx1, -hw, hw, 0, L)
+            x0 = gx0 - 1
+            groove -= _xy_prism([(x0, -groove_half_f(x0, f)), (xt + f, -groove_half_f(xt + f, f)),
+                                 (xt + f, groove_half_f(xt + f, f)), (x0, groove_half_f(x0, f))], -1, L + 1)
+            for i in range(k + 1):
+                groove -= _zcyl(gx0 + 1.2 + 2 * i, hw - groove_wall / 2, 1.2, L - 1, L + 1)
+            pieces.append(_lay_flat(Rot(0, -90, 0) * rail, y_offset=k * 30))
+            g = _lay_flat(groove, y_offset=k * 30)
+            pieces.append(Pos(25, 0, 0) * g)
+        return Compound(children=pieces)
 
     # ---------------- B: front piece ----------------
     frame = _box(xb, W, 0, H, 0, frame_t)
@@ -205,11 +249,8 @@ def build(
             B -= _zcyl(x, y, pilot_d, -1, frame_t + boss_h + 1)
     # Snap tongue over the bottom groove: two slots free a strip of the web
     yr = rys[0]
-    for y0 in (yr + gh - 0.3, yr - gh - slot_w + 0.3):
-        B -= _box(xg - 0.3, xw + 0.1, y0, y0 + slot_w, z_root, b_depth + 1)
-        # Stop hole: rounds the slot end so the tongue root has no sharp notch
-        B -= Pos((xg - 0.3 + xw + 0.1) / 2, y0 + slot_w / 2, z_root) * (
-            Rot(0, 90, 0) * Cylinder(slot_relief_d / 2, xw - xg + 0.4))
+    for y0 in (yr + gh - slot_overlap, yr - gh - slot_w + slot_overlap):
+        B -= _box(xg - slot_overlap, xw + 0.1, y0, y0 + slot_w, z_root, b_depth + 1)
     hook_pts = [(xg + 0.01, zh - (hook + 0.01) / tr), (xg - hook, zh), (xg - hook, zh + hook_flat),
                 (xg + 0.01, zh + hook_flat + (hook + 0.01) / tm)]
     B += _xz_prism(hook_pts, yr - hook_half, yr + hook_half)
@@ -218,7 +259,7 @@ def build(
     A = _box(-W, xa, 0, y_top, a_relief, depth)
     A += _box(xa - 0.01, xa + ceiling_w, y_ceil0, y_top, a_relief, depth)
     A += _xy_prism([(xa - 0.01, y_ceil0 - brace), (xa - 0.01, y_ceil0), (xa + brace, y_ceil0)],
-                   b_depth + 2, depth)
+                   b_depth + brace_gap, depth)
     for yr in rys:
         A += _xy_prism([(xa - 0.01, yr - rail_half(xa)), (xt, yr - rail_half(xt)),
                         (xt, yr + rail_half(xt)), (xa - 0.01, yr + rail_half(xa))],
@@ -230,9 +271,9 @@ def build(
     # Snap notch in the bottom rail's top, matching the seated hook
     n = hook - fit + 0.2
     front = lambda x: zh - notch_play - (x - (xg - hook)) / tr  # notch front wall, parallel to the hook face
-    z_back = zh + hook_flat + 0.4
+    # The notch runs straight out the back of the rail (no thin wedge left behind it)
     notch = [(xt + 0.5, front(xt + 0.5)), (xt - n, front(xt - n)),
-             (xt - n, z_back), (xt + 0.5, z_back + (n + 0.5) / tm)]
+             (xt - n, b_depth + 1), (xt + 0.5, b_depth + 1)]
     A -= _xz_prism(notch, rys[0] - rail_half(xt) - 1, rys[0] + rail_half(xt) + 1)
 
     if layout == "assembled":
