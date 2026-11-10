@@ -131,6 +131,32 @@ def _yz_prism(pts, x0, x1):
     return extrude(Plane.YZ.offset(x0) * Polygon(*pts, align=None), amount=x1 - x0, dir=(1, 0, 0))
 
 
+def _round_poly(pts, radii, n=8):
+    """Replace polygon corners with circular arcs (radius per vertex; 0 keeps the corner).
+    Works for convex and concave corners: the arc is tangent to both adjacent edges."""
+    out = []
+    m = len(pts)
+    for i, (p, r) in enumerate(zip(pts, radii)):
+        if r <= 0:
+            out.append(p)
+            continue
+        a, c = pts[i - 1], pts[(i + 1) % m]
+        u1 = (a[0] - p[0], a[1] - p[1]); l1 = math.hypot(*u1); u1 = (u1[0] / l1, u1[1] / l1)
+        u2 = (c[0] - p[0], c[1] - p[1]); l2 = math.hypot(*u2); u2 = (u2[0] / l2, u2[1] / l2)
+        th = math.acos(max(-1.0, min(1.0, u1[0] * u2[0] + u1[1] * u2[1])))
+        t = r / math.tan(th / 2)
+        assert t < min(l1, l2) / 2 + 1e-9, "round radius too big for the adjacent edges"
+        bx, by = u1[0] + u2[0], u1[1] + u2[1]; bl = math.hypot(bx, by)
+        o = (p[0] + bx / bl * r / math.sin(th / 2), p[1] + by / bl * r / math.sin(th / 2))
+        t1 = (p[0] + u1[0] * t, p[1] + u1[1] * t)
+        t2 = (p[0] + u2[0] * t, p[1] + u2[1] * t)
+        a1 = math.atan2(t1[1] - o[1], t1[0] - o[0])
+        a2 = math.atan2(t2[1] - o[1], t2[0] - o[0])
+        d = (a2 - a1 + math.pi) % (2 * math.pi) - math.pi   # short way round
+        out += [(o[0] + r * math.cos(a1 + d * k / n), o[1] + r * math.sin(a1 + d * k / n)) for k in range(n + 1)]
+    return out
+
+
 def _lay_flat(shape, y_offset=0.0):
     bb = shape.bounding_box()
     return Pos(-bb.min.X, -bb.min.Y + y_offset, -bb.min.Z) * shape
@@ -183,6 +209,9 @@ def build(
     rail_base: float = 6.0,
     rail_angle: float = 30.0,
     rail_y: float = 18.5,
+    dove_round: float = 0.5,    # bullnose on the dovetails' outside edges (A's rail tops, B's groove lips)
+    dove_fillet: float = None,  # fillet in the matching inside corners (A's rail roots, B's groove floors);
+                                # None: min(0.2, dove_round - fit - 0.1) so the bullnose always clears it
     lead: float = 2.0,          # 45-degree lead-in on rail fronts and groove mouths (blind entry)
     # Snap fork (arms on A) and tooth (on B)
     arm_len: float = 26.0,      # arm root to hook land center
@@ -267,6 +296,8 @@ def build(
         tip_gap = fit + 0.4
     if hook is None:
         hook = round(tooth_gap + y_play + engagement_target, 2)
+    if dove_fillet is None:
+        dove_fillet = round(min(0.2, dove_round - fit - 0.1), 2)
     if key_gap is None:
         key_gap = round(y_play + 0.1, 2)
     if arm_slot is None:
@@ -307,6 +338,12 @@ def build(
     assert rail_y - gh - groove_wall > shelf_t, "groove block runs into the shelf"
     assert groove_wall - lead >= min_wall, "flared groove mouth leaves too thin a wall"
     assert depth >= b_depth + brace_gap + 5, "wall plate too short for the ceiling brace"
+    # Each bullnose sits in the other part's filleted corner; the round must exceed the
+    # fillet by more than the fit, or the corners touch before the flanks do.
+    assert dove_round >= dove_fillet + fit + 0.1, "dovetail round must clear the mating fillet"
+    # Rounds eat r / tan(30 deg) off each flank end (60-degree corners); keep >= 2 mm of flank contact
+    flank_x = rail_h - (dove_round + max(dove_round, dove_fillet)) / math.tan(math.radians(90 - rail_angle)) * math.cos(math.radians(rail_angle))
+    assert flank_x >= 2.0, f"dovetail rounds leave only {flank_x:.2f} mm of flank contact"
     lip = cable_h - cable_entry                    # finger lip rises this far above the shelf bottom
     assert finger_t < lip <= cable_w + finger_t, "finger lip must rise at <= 45 degrees within the channel"
     assert cable_entry >= 3.5, "cable entry slot too narrow for USB cables"
@@ -435,7 +472,13 @@ def build(
     for yr in rys:
         B += _box(xb, xg + 0.01, yr - gh - groove_wall, yr + gh + groove_wall, frame_t - 0.01, b_depth)
         x0 = xb - 1
-        B -= _xy_prism([(x0, yr - groove_half(x0)), (xg, yr - gh), (xg, yr + gh), (x0, yr + groove_half(x0))],
+        # Groove cut with B's lip edges bullnosed (concave corners of the cut at x = xb)
+        # and the groove floor corners filleted (convex corners of the cut at x = xg).
+        e = 3 * dove_round + 1.0
+        gpts = [(x0, yr - groove_half(xb) - e), (xb, yr - groove_half(xb) - e), (xb, yr - groove_half(xb)),
+                (xg, yr - gh), (xg, yr + gh), (xb, yr + groove_half(xb)), (xb, yr + groove_half(xb) + e),
+                (x0, yr + groove_half(xb) + e)]
+        B -= _xy_prism(_round_poly(gpts, [0, 0, dove_round, dove_fillet, dove_fillet, dove_round, 0, 0]),
                        frame_t, b_depth + 1)
         sec = lambda z, e: Plane.XY.offset(z) * Polygon(
             (x0, yr - groove_half(x0) - e), (xg, yr - gh - e), (xg, yr + gh + e), (x0, yr + groove_half(x0) + e),
@@ -459,8 +502,12 @@ def build(
     A += _xy_prism([(xa - 0.01, y_ceil0 - brace), (xa - 0.01, y_ceil0), (xa + brace, y_ceil0)],
                    b_depth + brace_gap, depth)
     for yr in rys:
-        A += _xy_prism([(xa - 0.01, yr - rail_half(xa)), (xt, yr - rail_half(xt)),
-                        (xt, yr + rail_half(xt)), (xa - 0.01, yr + rail_half(xa))],
+        # Rail with its top edges bullnosed and its roots filleted into the plate.
+        e = 3 * dove_fillet + 1.0
+        rpts = [(xa - 1, yr - rail_half(xa) - e), (xa, yr - rail_half(xa) - e), (xa, yr - rail_half(xa)),
+                (xt, yr - rail_half(xt)), (xt, yr + rail_half(xt)), (xa, yr + rail_half(xa)),
+                (xa, yr + rail_half(xa) + e), (xa - 1, yr + rail_half(xa) + e)]
+        A += _xy_prism(_round_poly(rpts, [0, 0, dove_fillet, dove_round, dove_round, dove_fillet, 0, 0]),
                        frame_t + fit, b_depth)
         rz0 = frame_t + fit
         A -= _xz_prism([(xt - lead, rz0 - 0.01), (xt + 0.01, rz0 - 0.01), (xt + 0.01, rz0 + lead)],
