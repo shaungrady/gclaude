@@ -20,26 +20,30 @@ Concept
 
 Use / assembly
   0. Print layout="fit_test": B's flat frame (hold it on the controller to check
-     screw spacing and pilots) plus a short fork coupon and tooth coupon to feel
-     the click and the pull-off force before printing the full parts.
+     screw spacing and pilots) plus a "spine" pair: the wall-side strip of A
+     (plate, both dovetail rails, snap fork) and of B (grooves, tooth, mouth key,
+     tab, left screw bosses), cut from the real parts. Slide them together to check
+     the dovetail fit, the click and the pull-off before printing the full parts.
   1. Screw the controller to B on the bench.
   2. Stick A to the cabinet wall (two Large strips, along the plate in the bands
      above and below the fork window; keep the arms free) and to the ceiling.
   3. Slide B straight back onto A's rails until it clicks: push on the controller's
      front plate at its wall-side margin, at mid-height (the ~20 mm strip between
      the plate's wall-side edge and the buttons).
-  Remove: pull the finger tab (below the controller's wall-side bottom corner)
-  with a finger while the thumb pulls the controller's top edge near the wall, so
-  the two forces balance about the rails' center. The tooth's V spreads the arms
-  and B slides out; leave ~40 mm of cable slack.
+  Remove: unplug or slacken the cables, peel A off its hook-and-loop strips (the
+  whole assembly comes away), then on the bench hold A and push B off its rails
+  with both hands close to the rails (thumbs on B's wall-side frame and finger
+  tab). The tooth's V spreads the arms and B slides out.
+  (In place there's nothing to pull on near the rails' center: the controller's
+  top edge sits 0.5 mm under A's ceiling flange, and the tab alone is 45 mm off
+  center, which racks B in the rails.)
 
   Why: the rails are at the wall, 42 mm apart, and engage only ~36 mm. A push or
   pull far from the rails' center (in X or in Y) twists B in them like a drawer
   pulled by one corner, and friction locks it (jams beyond roughly L / (3 mu) ~
   24 mm off center, mu ~0.5 unverified); the twist also pries A off the wall.
   The wall-side margin at mid-height is ~5 mm from the rail line in X and on
-  center in Y. The tab alone is 45 mm below the rails' center, so pull it only
-  together with the top edge.
+  center in Y.
 
   Wall strips: two Large strips (19 x 92 mm) running front to back in the bands
   above and below the fork window: y 0 to 29.8 and 49.2 to 82.5 mm from A's bottom
@@ -50,7 +54,9 @@ Use / assembly
   then tuck it toward the wall and under each fingertip; the fingertips hang below
   the lip crest so the cables can't ride back out. The front ~40 mm of the corner is
   taken by B and the controller, so cables can't pass the mount there.
-  Ceiling strip: the ceiling flange's strip face prints as a vertical wall (fine
+  Ceiling strip: the ceiling flange's strip face prints as a vertical wall; a
+  seam line may land on it (paint the seam elsewhere in PrusaSlicer if so). If the
+  cabinet ceiling runs above ~35 C, use PETG and VHB or Dual Lock instead (fine
   layer lines), not on the bed; sand it flat before sticking the strip.
 
 Note: the code builds everything with the wall at -X and mirrors on output, so
@@ -183,6 +189,9 @@ def snap_numbers(arm_len, arm_h, arm_b, hook, gap, y_play, slot_w, tip_len, E, m
                 pull=2 * P * wfac(ret), engagement=hook - gap - y_play)
 
 
+DERIVED: dict = {}   # values derived from None defaults by the last build() (read by tools/build.py)
+
+
 def build(
     plate_w: float = 135.0,     # controller front plate
     plate_h: float = 79.0,
@@ -253,7 +262,7 @@ def build(
     cable_w: float = 16.0,      # channel width out from the wall plate (to the finger tips)
     cable_h: float = 12.0,      # channel height below the ceiling flange
     cable_entry: float = 4.0,   # slot between the finger lips and the ceiling flange
-    finger_n: int = 3,
+    finger_n: int = 3,          # >= 2 (fingertips hang between fingers)
     finger_w: float = 6.0,      # finger width along the channel (front to back)
     finger_root: float = 6.0,   # trunk depth below the channel floor at the wall
     finger_tip: float = 3.0,    # trunk depth at the tip (tapered bracket)
@@ -305,11 +314,14 @@ def build(
     if hook is None:
         hook = round(tooth_gap + y_play + engagement_target, 2)
     if dove_fillet is None:
-        dove_fillet = round(min(0.2, dove_round - fit - 0.1), 2)
+        dove_fillet = max(0.0, round(min(0.2, dove_round - fit - 0.1), 2))
     if key_gap is None:
         key_gap = round(y_play + 0.1, 2)
     if arm_slot is None:
         arm_slot = max(2.0, math.ceil(((hook - tooth_gap + y_play) * 1.3 + 0.3) * 20) / 20)
+    DERIVED.clear()
+    DERIVED.update(tooth_gap=round(tooth_gap, 3), tip_gap=round(tip_gap, 3), hook=hook,
+                   arm_slot=arm_slot, key_gap=key_gap, dove_fillet=dove_fillet)
 
     # ---- snap geometry (d = distance from the fork center line y = yc) ----
     yc = cy
@@ -350,14 +362,20 @@ def build(
     # fillet by more than the fit, or the corners touch before the flanks do.
     assert dove_round >= dove_fillet + fit + 0.1, "dovetail round must clear the mating fillet"
     # Rounds eat r / tan(30 deg) off each flank end (60-degree corners); keep >= 2 mm of flank contact
-    flank_x = rail_h - (dove_round + max(dove_round, dove_fillet)) / math.tan(math.radians(90 - rail_angle)) * math.cos(math.radians(rail_angle))
+    # Mated flank contact (in X): a round in a (90 - angle) corner eats r / tan(half
+    # that angle) along the flank; a fillet in a (90 + angle) corner eats r / tan(half).
+    ca = math.cos(math.radians(rail_angle))
+    acute = dove_round / math.tan(math.radians((90 - rail_angle) / 2)) * ca
+    obtuse = dove_fillet / math.tan(math.radians((90 + rail_angle) / 2)) * ca if dove_fillet > 0 else 0.0
+    flank_x = min(xt - acute, xg - obtuse) - max(xa + obtuse, xb + acute)
     assert flank_x >= 2.0, f"dovetail rounds leave only {flank_x:.2f} mm of flank contact"
     lip = cable_h - cable_entry                    # lip crest height above the channel floor
     # The lip rises at 45 degrees (the print limit) and needs room for its crest and a flat floor
-    assert lip + lip_t + 3 <= cable_w, "channel too narrow for the 45-degree lip plus a flat floor"
+    assert cable_w - lip - lip_t >= 2 * finger_fillet + 0.5, "channel too narrow for the 45-degree lip plus a flat floor"
+    assert finger_n >= 2, "need at least 2 cable fingers (fingertips hang between them)"
     assert finger_root >= finger_tip, "finger trunk must taper toward the tip (prints without overhang)"
     assert lip - tip_drop >= 4.5, "fingertips leave no room for a 4 mm cable above the channel floor"
-    assert cable_w - 1 <= ceiling_w - 1, "fingertips must hang from the ceiling flange"
+    assert cable_w <= ceiling_w, "fingertips must hang from the ceiling flange"
     assert cable_entry >= 3.5, "cable entry slot too narrow for USB cables"
     assert b_depth + brace_gap + 6 + finger_w * finger_n < depth - 2, "no room for the cable fingers behind B"
     assert a_relief > 0, "controller plate would touch A's front edge"
@@ -370,7 +388,8 @@ def build(
     # Tab sits below the controller; its center must be close to the rails' line of
     # action so a push/pull there doesn't twist B (jams beyond ~L/(3 mu) ~ 24 mm).
     assert (xb + tab_w / 2) - (xa + rail_h / 2) <= tab_max_off, "finger tab too far from the rail line"
-    assert 0 < tab_r <= min(tab_w, tab_h) / 2 - 0.5, "tab corner radius too big for the tab"
+    assert tab_r > 0, "tab corner radius must be positive"
+    assert tab_r <= min(tab_w, tab_h) / 2 - 0.5, "tab corner radius too big for the tab"
     assert depth - a_relief >= strip_len + 2, "wall plate shorter than a Large strip"
     assert key_gap > y_play + 0.05, "mouth key would locate B instead of the dovetails (over-constrained)"
     # Arm tops clear B's web even with B pushed against the wall plate
@@ -462,23 +481,6 @@ def build(
         for sy in (-1, 1):
             frame -= _zcyl(sx * hx, cy + sy * hy, pilot_d, -1, frame_t + 1)
 
-    if layout == "fit_test":
-        # Frame (screw check) + a short fork coupon (A-style, wall face down) + a tooth
-        # coupon (B-style, front face down) with a web to hold. Slide the tooth into the
-        # fork along the arms to feel the click and the pull-off.
-        cz0 = a_relief
-        coup_a = _box(-W, xa, yc - d_slot - 4, yc + d_slot + 4, cz0, z_root + rib_ext + arm_above + 3)
-        coup_a -= fork_cut(cz0 - 1)
-        coup_a += fork_arms()
-        coup_b = tooth() + _box(xb, xg + 0.01, yc - foot_half, yc + foot_half, 0, frame_t)
-        coup_b += _box(xg, xw + 2, yc - d_slot - 2, yc + d_slot + 2, 0, z_tback + 8)
-        coup_b += mouth_key()
-        f = _lay_flat(_m(frame))
-        yo = H + tab_h + 10                                          # clear of the tab
-        a = _lay_flat(Rot(0, 90, 0) * _m(coup_a), y_offset=yo)       # wall face (+X) down
-        b = Pos(60, 0, 0) * _lay_flat(_m(coup_b), y_offset=yo)
-        return Compound(children=[f, a, b])
-
     B = frame
     B += _box(xg, xw, shelf_t - 0.01, H - shelf_t + 0.01, frame_t - 0.01, b_depth)
     for yr in rys:
@@ -553,21 +555,42 @@ def build(
     # the wall (room to tuck a cable in under them) and they grow out of the flange
     # at 45 degrees in A's print.
     x_t = xa + cable_w - 1                            # fingertip outer face, just inside the lips
-    y_low = y_floor + lip - tip_drop                  # fingertip bottom
-    x_meet = x_t - (y_ceil0 - y_low)                  # where the 45-degree underside meets the flange
-    tpts = [(x_meet - 2, y_top - 0.5), (x_t, y_top - 0.5), (x_t, y_low), (x_meet, y_ceil0),
-            (x_meet - 2, y_ceil0)]
-    tip_prof = _round_poly(tpts, [0, 0, 1.2, 1.5, 0])
+    y_target = y_floor + lip - tip_drop               # wanted low point (after rounding)
+
+    def tip_profile(y_v):
+        x_meet = x_t - (y_ceil0 - y_v)                # 45-degree underside meets the flange
+        pts = [(x_meet - 2, y_top - 0.5), (x_t, y_top - 0.5), (x_t, y_v), (x_meet, y_ceil0),
+               (x_meet - 2, y_ceil0)]
+        return _round_poly(pts, [0, 0, 1.2, 1.5, 0])
+
+    # The round on the tip raises its low point; drop the sharp vertex to compensate.
+    lift = min(p[1] for p in tip_profile(y_target)) - y_target
+    tip_prof = tip_profile(y_target - lift)
+    assert abs(min(p[1] for p in tip_prof) - y_target) < 0.02, "fingertip low point off target"
     for za, zb in zip(zfs, zfs[1:]):
         zm = (za + finger_w + zb) / 2
         A += _xy_prism(tip_prof, zm - tip_w / 2, zm + tip_w / 2)
     A -= fork_cut(a_relief - 1)
     for s_ in (-1, 1):   # 45-degree lead-in at the window's front corners
         y0 = yc + s_ * d_slot
-        A -= _yz_prism(sorted([(y0, a_relief - 0.01), (y0 + s_ * key_chamfer, a_relief - 0.01),
-                               (y0, a_relief + key_chamfer)], key=lambda p: (p[1], p[0] * s_)),
-                       -W - 0.01, xa + 0.01)
+        tri = [(y0, a_relief - 0.01), (y0 + s_ * key_chamfer, a_relief - 0.01), (y0, a_relief + key_chamfer)]
+        A -= _yz_prism(tri, -W - 0.01, xa + 0.01)     # _yz_prism extrudes along +X either winding
     A += fork_arms()
+
+    if layout == "fit_test":
+        # B's flat frame (screw spacing and pilots) + a "spine" pair cut from the real
+        # parts: A's wall-side strip (plate, rails, snap fork; no ceiling flange,
+        # brace or cable fingers) and B's wall-side strip (grooves, tooth, mouth key,
+        # tab, left bosses). Tests the dovetail fit, the click and the pull-off.
+        spine_a = A & _box(-W - 1, xa + max(rail_h, arm_above) + 1, -1, H, -1, b_depth + 1)
+        spine_b = B & _box(xb - 1, xw + 0.5, -tab_h - 1, H + 1, -1, b_depth + 1)
+        f = _lay_flat(_m(frame))
+        a_ = _lay_flat(Rot(0, 90, 0) * _m(spine_a))                     # wall face (+X) down
+        b_ = _lay_flat(_m(spine_b))                                     # front face down
+        y1 = f.bounding_box().max.Y + 10
+        a_ = Pos(0, y1, 0) * a_
+        b_ = Pos(a_.bounding_box().max.X + 10, y1, 0) * b_
+        return Compound(children=[f, a_, b_])
 
     A, B = _m(A), _m(B)                  # wall to +X: the viewer's left
     if layout == "assembled":
