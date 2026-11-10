@@ -10,8 +10,11 @@ No supports. The frame's right leg prints as a ~70 mm bridge between the two
 shelves; it's hidden behind the controller's plate, and `right_relief` leaves
 room for bridge sag.
 
-Strip face: 45 x 79 mm, fits two Medium Command strips (16 x 70 mm) vertically.
-Point the pull tabs down.
+Strip face: 100 x 79 mm. Two Large Command strips (19 x 92 mm) run front to
+back, one along the top edge and one along the bottom, which puts them as far
+apart as possible against both twisting loads: button presses (resisted over the
+plate's depth) and the controller's weight (resisted over its height).
+Point the pull tabs toward the back.
 
 Dimensions: refs/ac_infinity_controller2.md (manufacturer specs, not yet measured).
 Screw the controller on before sticking the mount up: the wall-side screws are
@@ -51,8 +54,9 @@ def build(
     pilot_d: float = 2.5,       # M3 / #4 thread-forming screws into PLA
     frame_t: float = 4.0,       # front frame thickness = screw bite
     wall_t: float = 3.0,        # wall plate thickness
-    depth: float = 45.0,        # wall plate depth (front to back)
+    depth: float = 100.0,       # wall plate depth; deeper = less strip peel from button presses
     shelf_t: float = 3.0,       # top/bottom brace shelves
+    shelf_root: float = 45.0,   # shelf depth at the wall plate (front face to back edge)
     shelf_tip: float = 8.0,     # shelf depth behind the frame at the far (right) end
     layout: str = "print",      # "print" or "assembled"
     show_unit: bool = False,
@@ -78,8 +82,8 @@ def build(
     # Front frame with the body opening
     part += _box(-W, W, 0, H, 0, frame_t)
     part -= _box(cut_l, cut_r, cut_b, cut_t, -1, frame_t + 1)
-    # Top and bottom shelves: full depth at the wall, tapering to shelf_tip
-    shelf = [(-W, frame_t), (W, frame_t), (W, frame_t + shelf_tip), (-W, depth)]
+    # Top and bottom shelves: shelf_root deep at the wall, tapering to shelf_tip
+    shelf = [(-W, frame_t), (W, frame_t), (W, frame_t + shelf_tip), (-W, min(shelf_root, depth))]
     part += _prism_xz(shelf, 0, shelf_t)
     part += _prism_xz(shelf, H - shelf_t, H)
 
