@@ -45,6 +45,51 @@ def resolve(sections, kind: str, name: str, seen=()) -> dict[str, str]:
     return merged
 
 
+class _Num(float):
+    """A scalar config number that also indexes like a 1-element vector (nozzle_diameter[0])."""
+    def __getitem__(self, i):
+        if i != 0:
+            raise IndexError(i)
+        return float(self)
+
+
+def _value(v: str):
+    """Config value as Python: comma-separated numbers become a list, a number an
+    indexable float, anything else a string."""
+    parts = [p.strip() for p in v.split(",")]
+    try:
+        nums = [float(p) for p in parts]
+    except ValueError:
+        return v.strip().strip('"')
+    return nums if len(nums) > 1 else _Num(nums[0])
+
+
+def eval_condition(cond: str, printer: dict):
+    """Evaluate a PrusaSlicer compatible_printers_condition against a resolved printer
+    preset. Supports =~ /re/, !~ /re/, ==, !=, <, >, <=, >=, and/or/not, parentheses,
+    [i] indexing. Returns True/False, or None if it uses something unsupported."""
+    regexes = []
+
+    def sub(m):
+        regexes.append(m.group(3))
+        neg = "not " if m.group(2) == "!~" else ""
+        return f"{neg}_re({len(regexes) - 1}, {m.group(1)})"
+
+    # x=~/re/ -> _re(i, x); then PrusaSlicer's "!" (not) -> Python "not".
+    expr = re.sub(r"([A-Za-z_]\w*(?:\[\d+\])?)\s*(=~|!~)\s*/(.*?)/", sub, cond)
+    expr = expr.replace("&&", " and ").replace("||", " or ")
+    expr = re.sub(r"!(?!=)", " not ", expr)
+    expr = re.sub(r"\btrue\b", "True", re.sub(r"\bfalse\b", "False", expr))
+    env = {k: _value(v) for k, v in printer.items()}
+    nd = env.get("nozzle_diameter")
+    env.setdefault("num_extruders", len(nd) if isinstance(nd, list) else 1)
+    env["_re"] = lambda i, x: re.search(regexes[i], str(x)) is not None
+    try:
+        return bool(eval(expr, {"__builtins__": {}}, env))
+    except Exception:
+        return None
+
+
 # Keys that describe the preset itself rather than slicing settings.
 META = {"renamed_from", "compatible_printers", "compatible_printers_condition",
         "compatible_prints", "compatible_prints_condition", "alias",
@@ -67,13 +112,12 @@ def main():
     for kind, name in (("printer", a.printer), ("print", a.print_), ("filament", a.filament)):
         preset = resolve(s, kind, name)
         cond = preset.get("compatible_printers_condition", "")
-        # Heuristic compatibility check (PrusaSlicer evaluates the full expression):
-        # test each `printer_notes=~/re/` and `printer_notes!~/re/` clause against this
-        # printer when the condition is a plain AND chain.
-        if kind != "printer" and cond and " or " not in cond:
-            bad = [rx for rx in re.findall(r"printer_notes=~/(.*?)/", cond) if not re.search(rx, notes)]
-            bad += [rx for rx in re.findall(r"printer_notes!~/(.*?)/", cond) if re.search(rx, notes)]
-            if bad:
+        if kind != "printer" and cond:
+            ok = eval_condition(cond, printer)
+            if ok is None:
+                print(f"warning: couldn't evaluate {kind} preset {name!r} compatibility "
+                      f"(condition: {cond}); check it in PrusaSlicer", file=sys.stderr)
+            elif not ok:
                 print(f"warning: {kind} preset {name!r} is not for this printer "
                       f"(condition: {cond})", file=sys.stderr)
         cfg.update({k: v for k, v in preset.items() if k not in META})

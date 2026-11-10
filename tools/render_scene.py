@@ -12,6 +12,7 @@ Views default to front-left-above and back-right-above (front = -Z in use).
 """
 from __future__ import annotations
 
+import sys
 import tempfile
 from pathlib import Path
 
@@ -22,7 +23,8 @@ import numpy as np
 import trimesh
 from build123d import Rot, export_stl
 
-import render as R
+sys.path.insert(0, str(Path(__file__).resolve().parent))   # importable from anywhere
+import render as R  # noqa: E402
 
 ORANGE = np.array([0.95, 0.55, 0.15])
 BLUE = np.array([0.3, 0.6, 0.95])

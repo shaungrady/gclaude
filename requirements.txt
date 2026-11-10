@@ -5,3 +5,5 @@ cadquery-ocp-novtk==8.0.1.1.0
 trimesh==5.2.0
 numpy==2.5.4
 matplotlib==3.11.2
+rtree==1.4.1      # trimesh proximity/containment in tools/check.py
+scipy==1.18.1

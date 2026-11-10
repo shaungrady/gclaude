@@ -62,29 +62,52 @@ def estimates(gcode: Path) -> dict:
     return found
 
 
+def gcode_config(gcode: Path) -> dict:
+    """The `; key = value` config block PrusaSlicer writes at the end of the G-code."""
+    cfg = {}
+    with open(gcode, errors="replace") as f:
+        for line in f:
+            m = re.match(r"; ([a-z0-9_]+) = (.*)", line)
+            if m:
+                cfg[m.group(1)] = m.group(2).strip()
+    return cfg
+
+
 def slice_model(model: Path, profile: Path = DEFAULT_PROFILE, overrides=(), project=False) -> dict:
     slicer = find_slicer()
     out_gcode = model.with_suffix(".gcode")
     out_gcode.unlink(missing_ok=True)          # never report a stale G-code
     base = [slicer, "--load", str(profile)]
+    # Validate every override before touching the filesystem.
+    pairs = []
+    for o in overrides:
+        k, sep, v = o.partition("=")
+        if not sep or not k.strip():
+            raise SystemExit(f"--set expects key=value, got {o!r}")
+        if "\n" in o or "\r" in o:
+            raise SystemExit(f"--set value must be one line (use \\n for G-code newlines): {o!r}")
+        pairs.append((k.strip(), v.strip()))
     tmp = None
-    if overrides:
-        # Overrides go in a second config file (key = value, PrusaSlicer's own format).
-        # Passing them as CLI flags breaks boolean options, which are bare flags.
-        tmp = tempfile.NamedTemporaryFile("w", suffix=".ini", delete=False, encoding="utf-8")
-        for o in overrides:
-            k, sep, v = o.partition("=")
-            if not sep:
-                raise SystemExit(f"--set expects key=value, got {o!r}")
-            tmp.write(f"{k.strip()} = {v.strip()}\n")
-        tmp.close()
-        base += ["--load", tmp.name]
     try:
+        if pairs:
+            # Overrides go in a second config file (key = value, PrusaSlicer's own format).
+            # Passing them as CLI flags breaks boolean options, which are bare flags.
+            tmp = tempfile.NamedTemporaryFile("w", suffix=".ini", delete=False, encoding="utf-8")
+            tmp.write("".join(f"{k} = {v}\n" for k, v in pairs))
+            tmp.close()
+            base += ["--load", tmp.name]
         cmd = base + ["--export-gcode", "--output", str(out_gcode), str(model)]
         r = subprocess.run(cmd, capture_output=True, text=True)
-        result = {"cmd": cmd, "returncode": r.returncode}
+        result = {"cmd": cmd, "returncode": r.returncode, "overrides": dict(pairs)}
         if r.returncode != 0 or not out_gcode.exists():
             result["error"] = (r.stderr or r.stdout)[-3000:]
+            return result
+        # PrusaSlicer silently ignores unknown keys; every override must appear in
+        # the G-code's config block, or it was misspelled.
+        config = gcode_config(out_gcode)
+        unknown = [k for k, _ in pairs if k not in config]
+        if unknown:
+            result["error"] = f"unknown PrusaSlicer config key(s), ignored by the slicer: {unknown}"
             return result
         result["gcode"] = str(out_gcode)
         result["estimates"] = estimates(out_gcode)

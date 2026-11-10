@@ -52,7 +52,10 @@ def _rasterize(mesh: trimesh.Trimesh, view, up, center, half):
 
     faces = mesh.faces
     X, Y, Z = px[faces], py[faces], pz[faces]
-    for i in range(len(faces)):
+    # Back-face culling: a closed mesh's faces pointing away from the camera are
+    # always hidden, so skip them (roughly halves the Python loop).
+    front = np.nonzero(mesh.face_normals @ d < 1e-9)[0]
+    for i in front:
         x, y, z = X[i], Y[i], Z[i]
         x0, x1 = max(int(np.floor(x.min())), 0), min(int(np.ceil(x.max())), RES - 1)
         y0, y1 = max(int(np.floor(y.min())), 0), min(int(np.ceil(y.max())), RES - 1)
@@ -102,14 +105,17 @@ def render(stl: Path, outdir: Path | None = None) -> list[Path]:
     outdir = Path(outdir or stl.parent)
     mesh = trimesh.load_mesh(stl)
     lo, hi = mesh.bounds
-    center = (lo + hi) / 2
-    half = np.linalg.norm(hi - lo) / 2 * 1.08  # fits any view direction
+    center0 = (lo + hi) / 2
 
     fig, axes = plt.subplots(2, 3, figsize=(15, 10.5), dpi=100)
     for ax, (title, view, up) in zip(axes.flat, VIEWS):
+        # Frame each view on the part's projected extent, not the bbox diagonal.
+        right, upv, _ = _basis(view, up)
+        pr, pu = (mesh.vertices - center0) @ right, (mesh.vertices - center0) @ upv
+        half = max(np.ptp(pr), np.ptp(pu)) / 2 * 1.08 + 1e-6
+        center = center0 + right * (pr.min() + pr.max()) / 2 + upv * (pu.min() + pu.max()) / 2
         fid, _, d = _rasterize(mesh, view, up, center, half)
         img = _shade(mesh, fid, d)
-        right, upv, _ = _basis(view, up)
         cr, cu = center @ right, center @ upv
         ax.imshow(img, extent=(cr - half, cr + half, cu - half, cu + half))
         ax.set_title(title, fontsize=10)

@@ -7,6 +7,7 @@ Pipeline: build123d script → STEP/STL/3MF → render + printability check → 
 ```bash
 python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
 ```
+(`requirements.lock` pins the full environment for exact reproduction.)
 
 PrusaSlicer must be on PATH (`prusa-slicer`) or set `PRUSA_SLICER=/path/to/PrusaSlicer`.
 
@@ -24,7 +25,10 @@ PrusaSlicer must be on PATH (`prusa-slicer`) or set `PRUSA_SLICER=/path/to/Prusa
    an `assembled` layout with build123d booleans, and render with `tools/render_scene.py`.
 
 Notes:
-- slice.py `--set` takes PrusaSlicer config-file keys (`support_material=1`, `fill_density=25%`).
+- slice.py `--set` takes PrusaSlicer config-file keys (`support_material=1`, `fill_density=25%`); a
+  misspelled key is reported as an error (PrusaSlicer itself would silently ignore it).
+- Models can publish values they derive from `None` defaults in a module-level `DERIVED` dict;
+  build.py merges them into summary.json.
 - The PrusaSlicer CLI re-arranges objects on the bed, so a model's print layout only matters when the
   3MF is opened in the GUI. check.py still flags bodies that overlap or float in the layout.
 

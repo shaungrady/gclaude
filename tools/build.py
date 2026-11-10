@@ -60,12 +60,19 @@ def main() -> int:
         params = {k: v.default for k, v in sig.parameters.items()
                   if v.default is not inspect.Parameter.empty}
         for item in args.set:
-            k, _, v = item.partition("=")
+            k, sep, v = item.partition("=")
+            if not sep:
+                print(f"error: --set expects key=value, got {item!r}", file=sys.stderr)
+                return 2
             if k not in sig.parameters:
                 print(f"error: build() has no parameter {k!r}", file=sys.stderr)
                 return 2
             params[k] = parse_value(v)
         part = mod.build(**params)
+        # Models may publish the values they derived from None defaults.
+        derived = getattr(mod, "DERIVED", None)
+        if isinstance(derived, dict):
+            params = {**params, **{k: v for k, v in derived.items() if params.get(k) is None}}
     elif hasattr(mod, "part"):
         if args.set:
             print("error: --set needs a build() function; this script has no build()", file=sys.stderr)
