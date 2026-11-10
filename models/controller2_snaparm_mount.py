@@ -22,7 +22,7 @@ Use / assembly
   0. Print layout="fit_test": B's flat frame (hold it on the controller to check
      screw spacing and pilots) plus a "spine" pair: the wall-side strip of A
      (plate, both dovetail rails, snap fork) and of B (grooves, tooth, mouth key,
-     tab, left screw bosses), cut from the real parts. Slide them together to check
+     left screw bosses), cut from the real parts. Slide them together to check
      the dovetail fit, the click and the pull-off before printing the full parts.
   1. Screw the controller to B on the bench.
   2. Stick A to the cabinet wall (two Large strips, along the plate in the bands
@@ -32,11 +32,11 @@ Use / assembly
      the plate's wall-side edge and the buttons).
   Remove: unplug or slacken the cables, peel A off its hook-and-loop strips (the
   whole assembly comes away), then on the bench hold A and push B off its rails
-  with both hands close to the rails (thumbs on B's wall-side frame and finger
-  tab). The tooth's V spreads the arms and B slides out.
+  with both hands close to the rails (thumbs on B's wall-side frame). The tooth's
+  V spreads the arms and B slides out.
   (In place there's nothing to pull on near the rails' center: the controller's
-  top edge sits 0.5 mm under A's ceiling flange, and the tab alone is 45 mm off
-  center, which racks B in the rails.)
+  top edge sits 0.5 mm under A's ceiling flange, and pulling anywhere far from the
+  rails racks B in them.)
 
   Why: the rails are at the wall, 42 mm apart, and engage only ~36 mm. A push or
   pull far from the rails' center (in X or in Y) twists B in them like a drawer
@@ -65,7 +65,7 @@ the coordinates in comments and asserts below refer to that internal frame.
 Load path
   Weight and its twisting moment: dovetail rails (B can't leave the wall or drop).
   Push back (button presses): B's frame seats on the rail fronts.
-  Removal/installation force: apply at the finger tab (see above).
+  Removal/installation force: apply close to the rails (see above).
   Forward pull only: tooth -> hooks -> arms. The hook forces are symmetric in Y,
   so B is not pushed sideways in the dovetails, and no X force reaches the arms.
   The arms are unloaded when seated (>= 0.2 mm Y gap each side after dovetail
@@ -246,8 +246,6 @@ def build(
     key_gap: float = None,      # mouth key to the window's edges (Y), per side (None: dovetail
                                 # play + 0.1, so the key never does the locating; 0.32 at fit 0.12)
     key_chamfer: float = 0.5,   # 45-degree lead-in on the key's back edges and the window's front corners
-    tab_w: float = 12.0,        # finger tab on B below the controller, at the rail line
-    tab_h: float = 12.0,
     E_mpa: float = 2200.0,      # printed PLA modulus (snap_fits.md: 2.2 to 3.3 GPa)
     mu: float = 0.5,            # printed-on-printed friction (unverified)
     # A (wall piece)
@@ -274,8 +272,6 @@ def build(
     a_relief: float = 0.5,
     strip_w: float = 19.0,      # Large hook-and-loop strip width (two on the wall face)
     strip_len: float = 92.0,
-    tab_r: float = 3.0,         # tab corner radius
-    tab_max_off: float = 10.0,  # tab center to rail line (X), max
     layout: str = "print",
     show_unit: bool = False,
 ):
@@ -385,11 +381,6 @@ def build(
     # Fork window leaves full-width bands for the two wall strips (no strip on the arms)
     assert yc - d_slot >= strip_w + 1, "no room for the lower wall strip"
     assert y_top - (yc + d_slot) >= strip_w + 1, "no room for the upper wall strip"
-    # Tab sits below the controller; its center must be close to the rails' line of
-    # action so a push/pull there doesn't twist B (jams beyond ~L/(3 mu) ~ 24 mm).
-    assert (xb + tab_w / 2) - (xa + rail_h / 2) <= tab_max_off, "finger tab too far from the rail line"
-    assert tab_r > 0, "tab corner radius must be positive"
-    assert tab_r <= min(tab_w, tab_h) / 2 - 0.5, "tab corner radius too big for the tab"
     assert depth - a_relief >= strip_len + 2, "wall plate shorter than a Large strip"
     assert key_gap > y_play + 0.05, "mouth key would locate B instead of the dovetails (over-constrained)"
     # Arm tops clear B's web even with B pushed against the wall plate
@@ -468,15 +459,6 @@ def build(
     # ---------------- B: front piece ----------------
     frame = _box(xb, W, 0, H, 0, frame_t)
     frame -= _box(xl, -xl, cut_b, cut_t, -1, frame_t + 1)
-    # Finger tab below the controller's bottom-left corner, at the rail line, so
-    # pushes and pulls don't twist B in the rails. Rounded bottom corners.
-    tab = _box(xb, xb + tab_w, -tab_h, 0.01, 0, frame_t)
-    r = tab_r
-    for cx in (xb + r, xb + tab_w - r):
-        tab -= _box(cx - r if cx < xb + tab_w / 2 else cx, cx if cx < xb + tab_w / 2 else cx + r,
-                    -tab_h - 0.01, -tab_h + r, -1, frame_t + 1)
-        tab += _zcyl(cx, -tab_h + r, 2 * r, 0, frame_t)
-    frame += tab
     for sx in (-1, 1):
         for sy in (-1, 1):
             frame -= _zcyl(sx * hx, cy + sy * hy, pilot_d, -1, frame_t + 1)
@@ -581,9 +563,9 @@ def build(
         # B's flat frame (screw spacing and pilots) + a "spine" pair cut from the real
         # parts: A's wall-side strip (plate, rails, snap fork; no ceiling flange,
         # brace or cable fingers) and B's wall-side strip (grooves, tooth, mouth key,
-        # tab, left bosses). Tests the dovetail fit, the click and the pull-off.
+        # left bosses). Tests the dovetail fit, the click and the pull-off.
         spine_a = A & _box(-W - 1, xa + max(rail_h, arm_above) + 1, -1, H, -1, b_depth + 1)
-        spine_b = B & _box(xb - 1, xw + 0.5, -tab_h - 1, H + 1, -1, b_depth + 1)
+        spine_b = B & _box(xb - 1, xw + 0.5, -1, H + 1, -1, b_depth + 1)
         f = _lay_flat(_m(frame))
         a_ = _lay_flat(Rot(0, 90, 0) * _m(spine_a))                     # wall face (+X) down
         b_ = _lay_flat(_m(spine_b))                                     # front face down
