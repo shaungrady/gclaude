@@ -11,7 +11,7 @@ Use:
   1. Screw the controller to B on the bench (all 4 screws reachable).
   2. Stick A to the cabinet wall and ceiling.
   3. Slide B + controller straight back onto A's rails until it clicks.
-  To remove: pull the controller straight forward firmly (~10 N); the hook's
+  To remove: pull the controller straight forward firmly (~6 to 8 N estimated); the hook's
   45-degree face lifts the tongue out of the notch.
 
 Loads: the dovetails carry the weight and the twisting from it (B can't pull
@@ -20,7 +20,8 @@ ends. Only forward pulls load the snap.
 
 Snap tongue: a cantilever cut from B's side web, flexing away from the wall.
 B prints with the tongue vertical, so it bends across layers; deflection is
-kept to ~0.8 mm over 30 mm (~0.4% strain). The hook's retention face is 45
+at most 1.2 mm over ~29 mm (~0.5% strain, worst case with B pushed against
+the wall), and the slots end in round stop holes. The hook's retention face is 45
 degrees so it prints without support (it faces down in B's print).
 
 Screws: 4 controller screws (M3 / #4 thread-forming, 8 to 12 mm) into B's
@@ -40,7 +41,7 @@ or "fit_test" (B's 4 mm frame only, to check the screw spacing on the real unit)
 """
 import math
 
-from build123d import Box, Compound, Cylinder, Plane, Polygon, Pos, Rot, extrude
+from build123d import Box, Compound, Cylinder, Plane, Polygon, Pos, Rot, extrude, loft
 
 
 def _box(x0, x1, y0, y1, z0, z1):
@@ -77,7 +78,7 @@ def build(
     hole_dx: float = 123.0,     # controller screw spacing (template + product photo)
     hole_dy: float = 67.0,
     pilot_d: float = 2.5,       # M3 / #4 thread-forming
-    fit: float = 0.2,           # sliding clearance per side
+    fit: float = 0.12,          # dovetail clearance normal to each face; tune with a test coupon
     min_wall: float = 1.2,
     # B (front piece)
     frame_t: float = 4.0,
@@ -86,7 +87,7 @@ def build(
     shelf_t: float = 3.0,
     shelf_tip: float = 8.0,
     b_depth: float = 40.0,      # B's length front to back (= rail length)
-    web_t: float = 2.8,         # B's side web; also the snap tongue thickness
+    web_t: float = 2.4,         # B's side web; also the snap tongue thickness
     groove_wall: float = 2.5,   # material beside each dovetail groove
     # Dovetail rails (on A)
     rail_h: float = 4.0,        # out from the wall plate
@@ -94,18 +95,24 @@ def build(
     rail_angle: float = 20.0,   # flank angle; also A's print overhang angle
     rail_y: float = 22.0,       # rail centers from top/bottom edges
     # Snap
-    tongue_len: float = 30.0,
-    hook: float = 1.0,          # hook height above the groove floor
+    tongue_len: float = 33.0,
+    hook: float = 1.2,          # hook height above the groove floor
     hook_flat: float = 1.0,
     ret_angle: float = 45.0,    # retention face; <= 45 prints without support
     ramp_angle: float = 30.0,   # lead-in face
     slot_w: float = 0.6,
+    slot_relief_d: float = 1.6, # round stop hole at each slot end (eases the tongue root)
+    notch_play: float = 0.25,   # hook to notch front wall when seated
+    lead: float = 1.5,          # 45-degree lead-in on rail fronts and groove mouths
     # A (wall piece)
     wall_t: float = 3.0,
     depth: float = 100.0,       # wall plate depth
     ceiling_w: float = 25.0,    # ceiling flange width (strip is 19)
     ceiling_t: float = 3.0,
     ceiling_gap: float = 0.5,
+    brace: float = 4.0,         # 45-degree brace under the ceiling flange
+    a_relief: float = 0.5,      # A starts this far behind B's front face, so the controller
+                                # plate (which overhangs B on the wall side) can't touch A
     layout: str = "print",
     show_unit: bool = False,
 ):
@@ -137,13 +144,14 @@ def build(
     z_hook_end = b_depth - 0.5
     zh = z_hook_end - hook / tm - hook_flat          # hook tip front edge
     z_root = b_depth - tongue_len
-    flex = hook - fit                                 # tongue deflection while sliding
-    strain = 1.5 * web_t * flex / tongue_len ** 2
+    lever = zh - z_root                               # tongue root to hook
+    # Worst case: the ramp pushes B against the wall plate, so the tongue bends the full hook height
+    strain = 1.5 * web_t * hook / lever ** 2
 
     assert layout in ("print", "assembled", "fit_test"), f"unknown layout {layout!r}"
     assert body_w < cut_w and body_h < cut_h, "body must fit the opening"
     assert xw <= xl, "B's side web must sit on the frame's left leg"
-    assert xw + flex + 0.5 <= -body_w / 2, "flexed tongue hits the controller body"
+    assert xw + hook + 0.5 <= -body_w / 2, "flexed tongue hits the controller body"
     assert hx + boss_d / 2 <= W and hx - boss_d / 2 > body_w / 2, "right bosses must clear body and edge"
     assert shelf_t < body_b and H - shelf_t > body_t, "shelves hit the body"
     for yr in rys:
@@ -154,7 +162,12 @@ def build(
     assert rail_y - gh - groove_wall > shelf_t, "groove block runs into the shelf"
     assert z_root > frame_t + 2, "tongue too long for B"
     assert strain < 0.006, f"tongue strain {strain:.4f} too high for across-layer bending"
-    assert gh - hook * t > (gh - 0.5), "hook wider than the groove"
+    hook_half = groove_half(xg - hook) - 0.25         # hook half width: clears the flanks at its tip
+    assert hook_half >= 2.0, "hook too narrow"
+    assert groove_wall - 0.3 >= min_wall, "tongue slots leave too thin a groove wall"
+    assert depth >= b_depth + 2 + 5, "wall plate too short for the ceiling brace"
+    assert a_relief > 0, "controller plate would touch A's front edge"
+    assert hook - fit >= 0.8, "too little hook engagement"
     assert ret_angle <= 45, "retention face would overhang in B's print"
 
     # ---------------- B: front piece ----------------
@@ -174,6 +187,11 @@ def build(
         x0 = xb - 1
         B -= _xy_prism([(x0, yr - groove_half(x0)), (xg, yr - gh), (xg, yr + gh), (x0, yr + groove_half(x0))],
                        frame_t, b_depth + 1)
+        # Flared groove mouth (wider in Y by `lead`, same depth in X) to guide B onto the rails
+        sec = lambda z, e: Plane.XY.offset(z) * Polygon(
+            (x0, yr - groove_half(x0) - e), (xg, yr - gh - e), (xg, yr + gh + e), (x0, yr + groove_half(x0) + e),
+            align=None)
+        B -= loft([sec(b_depth - lead, 0), sec(b_depth + 0.01, lead)])
     # Shelves: full depth at the side web, tapering to the right
     shelf = [(xb, frame_t), (W, frame_t), (W, frame_t + shelf_tip), (xw, b_depth), (xb, b_depth)]
     B += _xz_prism(shelf, 0, shelf_t)
@@ -189,23 +207,29 @@ def build(
     yr = rys[0]
     for y0 in (yr + gh - 0.3, yr - gh - slot_w + 0.3):
         B -= _box(xg - 0.3, xw + 0.1, y0, y0 + slot_w, z_root, b_depth + 1)
+        # Stop hole: rounds the slot end so the tongue root has no sharp notch
+        B -= Pos((xg - 0.3 + xw + 0.1) / 2, y0 + slot_w / 2, z_root) * (
+            Rot(0, 90, 0) * Cylinder(slot_relief_d / 2, xw - xg + 0.4))
     hook_pts = [(xg + 0.01, zh - (hook + 0.01) / tr), (xg - hook, zh), (xg - hook, zh + hook_flat),
                 (xg + 0.01, zh + hook_flat + (hook + 0.01) / tm)]
-    B += _xz_prism(hook_pts, yr - gh + 0.5, yr + gh - 0.5)
+    B += _xz_prism(hook_pts, yr - hook_half, yr + hook_half)
 
     # ---------------- A: wall piece ----------------
-    A = _box(-W, xa, 0, y_top, 0, depth)
-    A += _box(xa - 0.01, xa + ceiling_w, y_ceil0, y_top, 0, depth)
-    brace = 4.0
+    A = _box(-W, xa, 0, y_top, a_relief, depth)
+    A += _box(xa - 0.01, xa + ceiling_w, y_ceil0, y_top, a_relief, depth)
     A += _xy_prism([(xa - 0.01, y_ceil0 - brace), (xa - 0.01, y_ceil0), (xa + brace, y_ceil0)],
                    b_depth + 2, depth)
     for yr in rys:
         A += _xy_prism([(xa - 0.01, yr - rail_half(xa)), (xt, yr - rail_half(xt)),
                         (xt, yr + rail_half(xt)), (xa - 0.01, yr + rail_half(xa))],
                        frame_t + fit, b_depth)
-    # Snap notch in the bottom rail's top, matching the seated hook (0.1 mm play in front)
+        # 45-degree lead-in on the rail's front top edge
+        rz0 = frame_t + fit
+        A -= _xz_prism([(xt - lead, rz0 - 0.01), (xt + 0.01, rz0 - 0.01), (xt + 0.01, rz0 + lead)],
+                       yr - rail_half(xt) - 1, yr + rail_half(xt) + 1)
+    # Snap notch in the bottom rail's top, matching the seated hook
     n = hook - fit + 0.2
-    front = lambda x: zh - 0.1 - (x - (xg - hook)) / tr  # notch front wall, parallel to the hook face
+    front = lambda x: zh - notch_play - (x - (xg - hook)) / tr  # notch front wall, parallel to the hook face
     z_back = zh + hook_flat + 0.4
     notch = [(xt + 0.5, front(xt + 0.5)), (xt - n, front(xt - n)),
              (xt - n, z_back), (xt + 0.5, z_back + (n + 0.5) / tm)]
