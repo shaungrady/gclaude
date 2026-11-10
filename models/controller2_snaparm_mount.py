@@ -46,7 +46,9 @@ Use / assembly
   edge at the default fit. Keep the arms free.
   Cables: a channel runs along A's top inner corner, under the ceiling flange,
   from just behind B to A's back end. Push cables up through the 4 mm slot
-  between the finger lips and the flange. The front ~40 mm of the corner is
+  between the finger lips and the flange (where it's open between the fingertips),
+  then tuck it toward the wall and under each fingertip; the fingertips hang below
+  the lip crest so the cables can't ride back out. The front ~40 mm of the corner is
   taken by B and the controller, so cables can't pass the mount there.
   Ceiling strip: the ceiling flange's strip face prints as a vertical wall (fine
   layer lines), not on the bed; sand it flat before sticking the strip.
@@ -258,6 +260,8 @@ def build(
     lip_t: float = 3.0,         # lip thickness at its crest
     finger_round: float = 1.5,  # rounds on the finger's outside corners
     finger_fillet: float = 2.0, # fillets where the finger meets the wall plate
+    tip_drop: float = 2.0,      # fingertips hang this far below the lip crest (blocks the slot)
+    tip_w: float = 5.0,         # fingertip width along the channel
     a_relief: float = 0.5,
     strip_w: float = 19.0,      # Large hook-and-loop strip width (two on the wall face)
     strip_len: float = 92.0,
@@ -352,6 +356,8 @@ def build(
     # The lip rises at 45 degrees (the print limit) and needs room for its crest and a flat floor
     assert lip + lip_t + 3 <= cable_w, "channel too narrow for the 45-degree lip plus a flat floor"
     assert finger_root >= finger_tip, "finger trunk must taper toward the tip (prints without overhang)"
+    assert lip - tip_drop >= 4.5, "fingertips leave no room for a 4 mm cable above the channel floor"
+    assert cable_w - 1 <= ceiling_w - 1, "fingertips must hang from the ceiling flange"
     assert cable_entry >= 3.5, "cable entry slot too narrow for USB cables"
     assert b_depth + brace_gap + 6 + finger_w * finger_n < depth - 2, "no room for the cable fingers behind B"
     assert a_relief > 0, "controller plate would touch A's front edge"
@@ -538,9 +544,23 @@ def build(
     r_, f_ = finger_round, finger_fillet
     finger = _round_poly(fpts, [0, 0, f_, r_, r_, r_, r_, f_, 0, 0])
     z0f, z1f = b_depth + brace_gap + 6, depth - 2 - finger_w
-    for i in range(finger_n):
-        zf = z0f + (z1f - z0f) * (i / max(finger_n - 1, 1))
+    zfs = [z0f + (z1f - z0f) * (i / max(finger_n - 1, 1)) for i in range(finger_n)]
+    for zf in zfs:
         A += _xy_prism(finger, zf, zf + finger_w)
+    # Fingertips: fins hanging from the ceiling flange between the fingers, reaching
+    # `tip_drop` below the lip crest near the slot, so a cable resting in the channel
+    # can't ride up and out over the lips. Their underside rises at 45 degrees toward
+    # the wall (room to tuck a cable in under them) and they grow out of the flange
+    # at 45 degrees in A's print.
+    x_t = xa + cable_w - 1                            # fingertip outer face, just inside the lips
+    y_low = y_floor + lip - tip_drop                  # fingertip bottom
+    x_meet = x_t - (y_ceil0 - y_low)                  # where the 45-degree underside meets the flange
+    tpts = [(x_meet - 2, y_top - 0.5), (x_t, y_top - 0.5), (x_t, y_low), (x_meet, y_ceil0),
+            (x_meet - 2, y_ceil0)]
+    tip_prof = _round_poly(tpts, [0, 0, 1.2, 1.5, 0])
+    for za, zb in zip(zfs, zfs[1:]):
+        zm = (za + finger_w + zb) / 2
+        A += _xy_prism(tip_prof, zm - tip_w / 2, zm + tip_w / 2)
     A -= fork_cut(a_relief - 1)
     for s_ in (-1, 1):   # 45-degree lead-in at the window's front corners
         y0 = yc + s_ * d_slot
