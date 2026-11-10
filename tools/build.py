@@ -76,8 +76,11 @@ def main() -> int:
     step, stl, mf = out / f"{name}.step", out / f"{name}.stl", out / f"{name}.3mf"
     export_step(part, str(step))
     export_stl(part, str(stl), tolerance=0.01, angular_tolerance=0.1)
+    # One 3MF object per solid, so multi-piece designs arrive in PrusaSlicer
+    # as separate objects.
     mesher = Mesher()
-    mesher.add_shape(part, linear_deflection=0.01, angular_deflection=0.1)
+    for solid in part.solids():
+        mesher.add_shape(solid, linear_deflection=0.01, angular_deflection=0.1)
     mesher.write(str(mf))
 
     bb = part.bounding_box()
@@ -87,6 +90,7 @@ def main() -> int:
         "files": {"step": str(step), "stl": str(stl), "3mf": str(mf)},
         "bbox_mm": [round(bb.size.X, 3), round(bb.size.Y, 3), round(bb.size.Z, 3)],
         "volume_mm3": round(part.volume, 2),
+        "solids": len(part.solids()),
         "is_valid": bool(part.is_valid() if callable(part.is_valid) else part.is_valid),
     }
 
