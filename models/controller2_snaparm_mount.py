@@ -11,9 +11,10 @@ Concept
     up and down (in-use Y), parallel to the cabinet wall.
   B (front piece): frame the controller screws to (all 4 screws), shelves, side web
     and dovetail grooves (as the baseline, but the web is solid), plus a rigid
-    tooth hanging from the web into the fork, and a mouth key that fills the fork
-    window's mouth in front of the arm tips (bears on the window's rigid edges:
-    ties A's plate halves together across the window and locates B sideways). The tooth's back corners are 30 degree
+    tooth hanging from the web into the fork, and a mouth key: a loose filler
+    (~0.3 mm per side) in the fork window's mouth, in front of the arm tips. It
+    closes the visible opening and is a backup vertical stop if the dovetails wear;
+    the dovetails do the locating. The tooth's back corners are 30 degree
     lead-ins; its front is a 45 degree V that bears on the hooks' 45 degree
     retention faces.
 
@@ -24,21 +25,27 @@ Use / assembly
   1. Screw the controller to B on the bench.
   2. Stick A to the cabinet wall (two Large strips, along the plate in the bands
      above and below the fork window; keep the arms free) and to the ceiling.
-  3. Slide B straight back onto A's rails until it clicks, pushing on B's finger
-     tab (below the controller's bottom-left corner, next to the wall).
-  Remove: pull the finger tab straight forward. The tooth's V spreads the arms and
-  B slides out; leave ~40 mm of cable slack.
+  3. Slide B straight back onto A's rails until it clicks: push on the controller's
+     front plate at its wall-side margin, at mid-height (the ~20 mm strip between
+     the plate's wall-side edge and the buttons).
+  Remove: pull the finger tab (below the controller's wall-side bottom corner)
+  with a finger while the thumb pulls the controller's top edge near the wall, so
+  the two forces balance about the rails' center. The tooth's V spreads the arms
+  and B slides out; leave ~40 mm of cable slack.
 
-  Push and pull only at the tab (or grip the controller's top and bottom edges
-  within ~15 mm of the wall). The rails are at the wall and engage only ~36 mm, so
-  a push or pull at the controller's center twists B in them like a drawer pulled
-  by one corner: friction locks it (it jams once the force is more than about
-  L / (3 mu) ~ 24 mm from the rail line, mu ~0.5 unverified), and the twist pries
-  A's rail ends off the wall. At the tab the force is ~5 mm from the rails.
+  Why: the rails are at the wall, 42 mm apart, and engage only ~36 mm. A push or
+  pull far from the rails' center (in X or in Y) twists B in them like a drawer
+  pulled by one corner, and friction locks it (jams beyond roughly L / (3 mu) ~
+  24 mm off center, mu ~0.5 unverified); the twist also pries A off the wall.
+  The wall-side margin at mid-height is ~5 mm from the rail line in X and on
+  center in Y. The tab alone is 45 mm below the rails' center, so pull it only
+  together with the top edge.
 
   Wall strips: two Large strips (19 x 92 mm) running front to back in the bands
   above and below the fork window: y 0 to 29.8 and 49.2 to 82.5 mm from A's bottom
   edge at the default fit. Keep the arms free.
+  Ceiling strip: the ceiling flange's strip face prints as a vertical wall (fine
+  layer lines), not on the bed; sand it flat before sticking the strip.
 
 Note: the code builds everything with the wall at -X and mirrors on output, so
 the coordinates in comments and asserts below refer to that internal frame.
@@ -192,7 +199,9 @@ def build(
     tooth_wall_clear: float = 0.5,  # tooth bottom to A's back (wall) face
     foot_half: float = 2.0,     # foot under the tooth's V tip (supports it in B's print)
     rib_ext: float = 8.0,       # arm's above-plate part continues this far past the root
-    key_gap: float = 0.1,       # mouth key to the window's rigid edges (Y), per side
+    key_gap: float = None,      # mouth key to the window's edges (Y), per side (None: dovetail
+                                # play + 0.1, so the key never does the locating; 0.32 at fit 0.12)
+    key_chamfer: float = 0.5,   # 45-degree lead-in on the key's back edges and the window's front corners
     tab_w: float = 12.0,        # finger tab on B below the controller, at the rail line
     tab_h: float = 12.0,
     E_mpa: float = 2200.0,      # printed PLA modulus (snap_fits.md: 2.2 to 3.3 GPa)
@@ -207,6 +216,9 @@ def build(
     brace_gap: float = 2.0,
     a_relief: float = 0.5,
     strip_w: float = 19.0,      # Large hook-and-loop strip width (two on the wall face)
+    strip_len: float = 92.0,
+    tab_r: float = 3.0,         # tab corner radius
+    tab_max_off: float = 10.0,  # tab center to rail line (X), max
     layout: str = "print",
     show_unit: bool = False,
 ):
@@ -244,6 +256,8 @@ def build(
         tip_gap = fit + 0.4
     if hook is None:
         hook = round(tooth_gap + y_play + engagement_target, 2)
+    if key_gap is None:
+        key_gap = round(y_play + 0.1, 2)
     if arm_slot is None:
         arm_slot = max(2.0, math.ceil(((hook - tooth_gap + y_play) * 1.3 + 0.3) * 20) / 20)
 
@@ -291,8 +305,10 @@ def build(
     assert y_top - (yc + d_slot) >= strip_w + 1, "no room for the upper wall strip"
     # Tab sits below the controller; its center must be close to the rails' line of
     # action so a push/pull there doesn't twist B (jams beyond ~L/(3 mu) ~ 24 mm).
-    assert (xb + tab_w / 2) - (xa + rail_h / 2) <= 10, "finger tab too far from the rail line"
-    assert depth - a_relief >= 92 + 2, "wall plate shorter than a Large strip"
+    assert (xb + tab_w / 2) - (xa + rail_h / 2) <= tab_max_off, "finger tab too far from the rail line"
+    assert 0 < tab_r <= min(tab_w, tab_h) / 2 - 0.5, "tab corner radius too big for the tab"
+    assert depth - a_relief >= strip_len + 2, "wall plate shorter than a Large strip"
+    assert key_gap > y_play + 0.05, "mouth key would locate B instead of the dovetails (over-constrained)"
     # Arm tops clear B's web even with B pushed against the wall plate
     assert (xg - fit) - x_arm >= 0.3, "arm tops rub B's web"
     # Tooth clears A's wall face (with B pushed toward the wall) and the arms when seated
@@ -356,13 +372,23 @@ def build(
         th += _box(x_bot, xb + 0.01, yc - foot_half, yc + foot_half, 0, foot_top)
         return th
 
+    def mouth_key():
+        # Loose filler in the fork window's mouth, in front of the arm tips; never
+        # touches the arms. Back edges chamfered as a lead-in (faces up in B's print).
+        k = d_slot - key_gap
+        top = min(frame_t, z_ft - 0.3)
+        c = key_chamfer
+        pts = [(yc - k, 0), (yc + k, 0), (yc + k, top - c), (yc + k - c, top),
+               (yc - k + c, top), (yc - k, top - c)]
+        return _yz_prism(pts, x_bot, xb + 0.01)
+
     # ---------------- B: front piece ----------------
     frame = _box(xb, W, 0, H, 0, frame_t)
     frame -= _box(xl, -xl, cut_b, cut_t, -1, frame_t + 1)
     # Finger tab below the controller's bottom-left corner, at the rail line, so
     # pushes and pulls don't twist B in the rails. Rounded bottom corners.
     tab = _box(xb, xb + tab_w, -tab_h, 0.01, 0, frame_t)
-    r = 3.0
+    r = tab_r
     for cx in (xb + r, xb + tab_w - r):
         tab -= _box(cx - r if cx < xb + tab_w / 2 else cx, cx if cx < xb + tab_w / 2 else cx + r,
                     -tab_h - 0.01, -tab_h + r, -1, frame_t + 1)
@@ -382,9 +408,11 @@ def build(
         coup_a += fork_arms()
         coup_b = tooth() + _box(xb, xg + 0.01, yc - foot_half, yc + foot_half, 0, frame_t)
         coup_b += _box(xg, xw + 2, yc - d_slot - 2, yc + d_slot + 2, 0, z_tback + 8)
+        coup_b += mouth_key()
         f = _lay_flat(_m(frame))
-        a = _lay_flat(Rot(0, 90, 0) * _m(coup_a), y_offset=H + 10)   # wall face (+X) down
-        b = Pos(60, 0, 0) * _lay_flat(_m(coup_b), y_offset=H + 10)
+        yo = H + tab_h + 10                                          # clear of the tab
+        a = _lay_flat(Rot(0, 90, 0) * _m(coup_a), y_offset=yo)       # wall face (+X) down
+        b = Pos(60, 0, 0) * _lay_flat(_m(coup_b), y_offset=yo)
         return Compound(children=[f, a, b])
 
     B = frame
@@ -408,11 +436,7 @@ def build(
             B += boss & _box(xb, W, 0, H, 0, frame_t + boss_h + 1)
             B -= _zcyl(x, y, pilot_d, -1, frame_t + boss_h + 1)
     B += tooth()
-    # Mouth key: fills the fork window's mouth in front of the arm tips, bearing on the
-    # window's rigid edges. Ties A's plate halves together across the window, locates
-    # B sideways at the wall, and backs the tooth. Never touches the arms.
-    key_top = min(frame_t, z_ft - 0.3)
-    B += _box(x_bot, xb + 0.01, yc - (d_slot - key_gap), yc + (d_slot - key_gap), 0, key_top)
+    B += mouth_key()
 
     # ---------------- A: wall piece ----------------
     A = _box(-W, xa, 0, y_top, a_relief, depth)
@@ -427,6 +451,11 @@ def build(
         A -= _xz_prism([(xt - lead, rz0 - 0.01), (xt + 0.01, rz0 - 0.01), (xt + 0.01, rz0 + lead)],
                        yr - rail_half(xt) - 1, yr + rail_half(xt) + 1)
     A -= fork_cut(a_relief - 1)
+    for s_ in (-1, 1):   # 45-degree lead-in at the window's front corners
+        y0 = yc + s_ * d_slot
+        A -= _yz_prism(sorted([(y0, a_relief - 0.01), (y0 + s_ * key_chamfer, a_relief - 0.01),
+                               (y0, a_relief + key_chamfer)], key=lambda p: (p[1], p[0] * s_)),
+                       -W - 0.01, xa + 0.01)
     A += fork_arms()
 
     A, B = _m(A), _m(B)                  # wall to +X: the viewer's left
