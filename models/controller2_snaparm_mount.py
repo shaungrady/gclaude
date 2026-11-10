@@ -44,6 +44,10 @@ Use / assembly
   Wall strips: two Large strips (19 x 92 mm) running front to back in the bands
   above and below the fork window: y 0 to 29.8 and 49.2 to 82.5 mm from A's bottom
   edge at the default fit. Keep the arms free.
+  Cables: a channel runs along A's top inner corner, under the ceiling flange,
+  from just behind B to A's back end. Push cables up through the 4 mm slot
+  between the finger lips and the flange. The front ~40 mm of the corner is
+  taken by B and the controller, so cables can't pass the mount there.
   Ceiling strip: the ceiling flange's strip face prints as a vertical wall (fine
   layer lines), not on the bed; sand it flat before sticking the strip.
 
@@ -214,6 +218,13 @@ def build(
     ceiling_gap: float = 0.5,
     brace: float = 4.0,
     brace_gap: float = 2.0,
+    # Cable channel along A's top inner corner (under the ceiling flange), behind B
+    cable_w: float = 12.0,      # channel width out from the wall plate
+    cable_h: float = 12.0,      # channel height below the ceiling flange
+    cable_entry: float = 4.0,   # slot between the finger lips and the ceiling flange
+    finger_n: int = 3,
+    finger_w: float = 5.0,      # finger width along the channel (front to back)
+    finger_t: float = 2.4,      # finger shelf thickness
     a_relief: float = 0.5,
     strip_w: float = 19.0,      # Large hook-and-loop strip width (two on the wall face)
     strip_len: float = 92.0,
@@ -296,6 +307,10 @@ def build(
     assert rail_y - gh - groove_wall > shelf_t, "groove block runs into the shelf"
     assert groove_wall - lead >= min_wall, "flared groove mouth leaves too thin a wall"
     assert depth >= b_depth + brace_gap + 5, "wall plate too short for the ceiling brace"
+    lip = cable_h - cable_entry                    # finger lip rises this far above the shelf bottom
+    assert finger_t < lip <= cable_w + finger_t, "finger lip must rise at <= 45 degrees within the channel"
+    assert cable_entry >= 3.5, "cable entry slot too narrow for USB cables"
+    assert b_depth + brace_gap + 6 + finger_w * finger_n < depth - 2, "no room for the cable fingers behind B"
     assert a_relief > 0, "controller plate would touch A's front edge"
     # Fork sits in B's open channel between the groove blocks, with room to spare
     ch0, ch1 = rys[0] + gh + groove_wall, rys[1] - gh - groove_wall
@@ -450,6 +465,18 @@ def build(
         rz0 = frame_t + fit
         A -= _xz_prism([(xt - lead, rz0 - 0.01), (xt + 0.01, rz0 - 0.01), (xt + 0.01, rz0 + lead)],
                        yr - rail_half(xt) - 1, yr + rail_half(xt) + 1)
+    # Cable fingers: shelves out from the wall plate under the ceiling flange, each
+    # with a lip that rises at 45 degrees (prints without support with A wall-face
+    # down) to leave a `cable_entry` slot below the flange. Behind B only.
+    y_f = y_ceil0 - cable_h - finger_t               # finger shelf bottom
+    x_tip = xa + cable_w
+    x_s = x_tip - (lip - finger_t)                    # where the 45-degree lip starts
+    finger = [(xa - 0.01, y_f), (x_tip, y_f), (x_tip, y_f + lip), (x_s, y_f + finger_t),
+              (xa - 0.01, y_f + finger_t)]
+    z0f, z1f = b_depth + brace_gap + 6, depth - 2 - finger_w
+    for i in range(finger_n):
+        zf = z0f + (z1f - z0f) * (i / max(finger_n - 1, 1))
+        A += _xy_prism(finger, zf, zf + finger_w)
     A -= fork_cut(a_relief - 1)
     for s_ in (-1, 1):   # 45-degree lead-in at the window's front corners
         y0 = yc + s_ * d_slot
