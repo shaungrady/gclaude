@@ -11,7 +11,9 @@ Concept
     up and down (in-use Y), parallel to the cabinet wall.
   B (front piece): frame the controller screws to (all 4 screws), shelves, side web
     and dovetail grooves (as the baseline, but the web is solid), plus a rigid
-    tooth hanging from the web into the fork. The tooth's back corners are 30 degree
+    tooth hanging from the web into the fork, and a mouth key that fills the fork
+    window's mouth in front of the arm tips (bears on the window's rigid edges:
+    ties A's plate halves together across the window and locates B sideways). The tooth's back corners are 30 degree
     lead-ins; its front is a 45 degree V that bears on the hooks' 45 degree
     retention faces.
 
@@ -37,6 +39,9 @@ Use / assembly
   Wall strips: two Large strips (19 x 92 mm) running front to back in the bands
   above and below the fork window: y 0 to 29.8 and 49.2 to 82.5 mm from A's bottom
   edge at the default fit. Keep the arms free.
+
+Note: the code builds everything with the wall at -X and mirrors on output, so
+the coordinates in comments and asserts below refer to that internal frame.
 
 Load path
   Weight and its twisting moment: dovetail rails (B can't leave the wall or drop).
@@ -75,8 +80,10 @@ Key numbers (refs/joinery/snap_fits.md formulas, [derived] here)
 
 Dimensions: refs/ac_infinity_controller2.md (manufacturer specs, not measured).
 
-In-use frame (mm), same as controller2_slide_mount:
-  X = width, centered on the controller; x=-plate_w/2 is the cabinet wall side
+In-use frame (mm) of the delivered parts (layout="assembled"):
+  X = width, centered on the controller; x=+plate_w/2 is the cabinet wall side,
+      which is on the LEFT when you face the controller (right-handed frame,
+      facing +Z with +Y up puts +X on the left)
   Y = up; y=0 is the bottom edge of the controller's front plate
   Z = depth, +Z back into the cabinet; z=0 is B's front face (seated)
 layout: "print", "assembled" (children [A, B] or [A, B, unit] with show_unit=True),
@@ -84,7 +91,7 @@ layout: "print", "assembled" (children [A, B] or [A, B, unit] with show_unit=Tru
 """
 import math
 
-from build123d import Box, Compound, Cylinder, Plane, Polygon, Pos, Rot, extrude, loft
+from build123d import Box, Compound, Cylinder, Plane, Polygon, Pos, Rot, extrude, loft, mirror
 
 
 def _box(x0, x1, y0, y1, z0, z1):
@@ -185,6 +192,7 @@ def build(
     tooth_wall_clear: float = 0.5,  # tooth bottom to A's back (wall) face
     foot_half: float = 2.0,     # foot under the tooth's V tip (supports it in B's print)
     rib_ext: float = 8.0,       # arm's above-plate part continues this far past the root
+    key_gap: float = 0.1,       # mouth key to the window's rigid edges (Y), per side
     tab_w: float = 12.0,        # finger tab on B below the controller, at the rail line
     tab_h: float = 12.0,
     E_mpa: float = 2200.0,      # printed PLA modulus (snap_fits.md: 2.2 to 3.3 GPa)
@@ -289,6 +297,7 @@ def build(
     assert (xg - fit) - x_arm >= 0.3, "arm tops rub B's web"
     # Tooth clears A's wall face (with B pushed toward the wall) and the arms when seated
     assert x_bot - fit > -W, "tooth would stick out of A's wall face"
+    assert min(frame_t, z_ft - 0.3) >= a_relief + 2, "mouth key barely enters the window"
     assert tooth_gap - y_play >= 0.1, "tooth touches an arm when seated (arms must sit unloaded)"
     # Tooth V grows from B's frame/foot (no floating start in B's print)
     foot_top = max(frame_t, z_vtip + 0.01)      # foot rises to meet the V tip if it sits behind the frame
@@ -307,6 +316,12 @@ def build(
     assert ret_angle <= 45, "tooth V would overhang more than 45 deg in B's print"
     assert mu * tr < 1, "retention face would lock (not releasable by pulling)"
     assert arm_h >= 4 * 0.45, "arm thinner than 4 extrusion widths"
+
+    # Geometry below is built with the cabinet wall at -X and mirrored about the YZ
+    # plane on output (see _m), so the delivered parts have the wall at +X, which is
+    # the viewer's LEFT when facing the controller (+Y up, +Z into the cabinet).
+    def _m(shape):
+        return mirror(shape, about=Plane.YZ)
 
     # ---------------- snap features ----------------
     def fork_cut(z0, x0=-W - 1, x1=xa + 0.01):
@@ -367,9 +382,9 @@ def build(
         coup_a += fork_arms()
         coup_b = tooth() + _box(xb, xg + 0.01, yc - foot_half, yc + foot_half, 0, frame_t)
         coup_b += _box(xg, xw + 2, yc - d_slot - 2, yc + d_slot + 2, 0, z_tback + 8)
-        f = _lay_flat(frame)
-        a = _lay_flat(Rot(0, -90, 0) * coup_a, y_offset=H + 10)
-        b = Pos(60, 0, 0) * _lay_flat(coup_b, y_offset=H + 10)
+        f = _lay_flat(_m(frame))
+        a = _lay_flat(Rot(0, 90, 0) * _m(coup_a), y_offset=H + 10)   # wall face (+X) down
+        b = Pos(60, 0, 0) * _lay_flat(_m(coup_b), y_offset=H + 10)
         return Compound(children=[f, a, b])
 
     B = frame
@@ -393,6 +408,11 @@ def build(
             B += boss & _box(xb, W, 0, H, 0, frame_t + boss_h + 1)
             B -= _zcyl(x, y, pilot_d, -1, frame_t + boss_h + 1)
     B += tooth()
+    # Mouth key: fills the fork window's mouth in front of the arm tips, bearing on the
+    # window's rigid edges. Ties A's plate halves together across the window, locates
+    # B sideways at the wall, and backs the tooth. Never touches the arms.
+    key_top = min(frame_t, z_ft - 0.3)
+    B += _box(x_bot, xb + 0.01, yc - (d_slot - key_gap), yc + (d_slot - key_gap), 0, key_top)
 
     # ---------------- A: wall piece ----------------
     A = _box(-W, xa, 0, y_top, a_relief, depth)
@@ -409,6 +429,7 @@ def build(
     A -= fork_cut(a_relief - 1)
     A += fork_arms()
 
+    A, B = _m(A), _m(B)                  # wall to +X: the viewer's left
     if layout == "assembled":
         parts = [A, B]
         if show_unit:
@@ -417,6 +438,6 @@ def build(
             parts.append(unit)
         return Compound(children=parts)
 
-    a = _lay_flat(Rot(0, -90, 0) * A)    # in-use +X becomes print +Z (wall face down)
+    a = _lay_flat(Rot(0, 90, 0) * A)     # in-use -X becomes print +Z (wall face, at +X, down)
     b = _lay_flat(B, y_offset=y_top + 10)
     return Compound(children=[a, b])

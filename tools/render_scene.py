@@ -29,12 +29,18 @@ BLUE = np.array([0.3, 0.6, 0.95])
 GRAY = np.array([0.65, 0.65, 0.65])
 GREEN = np.array([0.35, 0.75, 0.4])
 
-# View directions (camera -> model) after rotating in-use +Y to +Z: in-use front (-Z) is +Y here.
+# Views are named from the viewer's position in the in-use frame of models/*:
+# +Y up, -Z toward the viewer (front), and +X on the viewer's LEFT when facing
+# the part from the front (right-handed: facing +Z with +Y up puts +X on the left).
+def _view(left: bool, front: bool, above: bool):
+    cam = (1 if left else -1, 0.8 if above else -0.6, -1 if front else 1)  # in-use x, y, z
+    rx, ry, rz = cam[0], -cam[2], cam[1]          # same Rot(90, 0, 0) as the meshes
+    return (-rx, -ry, -rz)                        # direction from camera toward the model
+
+
 VIEWS = {
-    "from front left, above": (1, -1, -0.8),
-    "from back right, above": (-1, 1, -0.8),
-    "from front right, below": (-1, -1, 0.6),
-    "from back left, above": (1, 1, -0.8),
+    f"from {fb} {lr}, {ud}": _view(lr == "left", fb == "front", ud == "above")
+    for fb in ("front", "back") for lr in ("left", "right") for ud in ("above", "below")
 }
 
 
