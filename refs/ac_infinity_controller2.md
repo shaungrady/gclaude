@@ -26,3 +26,11 @@ All mm. Origin at the plate's top-left corner, +X right, +Y down (as on the page
 | Display | 47 × 32 | (not drawn) | |
 
 Until the X hole spacing is measured on the real unit, slot the holes in X to span 120–123.
+
+## Resolved from product photo
+
+Source: https://cdn11.bigcommerce.com/s-238e9/images/stencil/2048x2048/products/131/7351/StorePhoto6__86637.1655142942.jpg?c=2
+Scaling the front view by the 135 mm plate width puts the hole centers ~123 × 66–67 mm apart,
+matching the template. The website's 120 mm is likely wrong. Use **123 × 67**.
+
+All ports (power, sensor, 2× USB-A fan) are on the **back** of the 112 × 68 body. Depth 28 mm overall.

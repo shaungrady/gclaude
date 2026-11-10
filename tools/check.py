@@ -56,7 +56,7 @@ def check(stl: Path, overhang_deg: float = 45.0) -> dict:
     # Slope measured from horizontal, same convention as PrusaSlicer's
     # support threshold: a downward face whose slope is below the threshold overhangs.
     cos_t = math.cos(math.radians(overhang_deg))
-    overhang = (normals[:, 2] < -cos_t) & ~on_bed
+    overhang = (normals[:, 2] < -cos_t - 1e-3) & ~on_bed  # tolerance: exactly 45 deg is fine
     overhang_area = float(areas[overhang].sum())
     if overhang_area > 1.0:
         zs = z_face[overhang]
