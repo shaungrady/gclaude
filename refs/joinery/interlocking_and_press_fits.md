@@ -1,6 +1,6 @@
 # Interlocking joints and interference fits (FDM, 0.4 mm nozzle, PLA/PETG)
 
-Scope: joints held by geometry, friction, or interference only (no screws, inserts, glue, snap hooks; see the sibling files for those). Numbers are **CAD dimensions** unless stated. "Per side" = gap on one face; "diametral" = difference in diameters. Hobby/vendor guides rarely publish raw data; peer-reviewed numbers are marked as such. Anything marked **[derived]** is geometry worked out here, not measured. **[unverified]** means no primary source was found.
+Scope: joints held by geometry, friction, or interference only (fasteners, glue, snap hooks are in sibling files). Numbers are **CAD dimensions**. "Per side" = gap on one face; "diametral" = difference in diameters. **[derived]** = geometry worked out here, not measured; **[unverified]** = no primary source found.
 
 ## Quick reference
 
@@ -20,24 +20,24 @@ Scope: joints held by geometry, friction, or interference only (no screws, inser
 | Puzzle/tongue offset | 0.2 mm small parts, 0.4 mm large parts (SLA data; add for FDM) | [7] |
 | Filament (1.75 mm) as pin | 2.0–2.1 mm hole; 1.85 mm reported too tight | **[unverified]** community |
 
-Calibrate first: a printer with an accurate 20 mm cube can still print holes 0.1–0.3 mm undersize [10][12]. Re-check the bed-side face for elephant foot (0.4 mm chamfer, see CLAUDE.md).
+Even with accurate outer dimensions, holes print ~0.1–0.3 mm undersize [10][12]; chamfer bed-side mating edges 0.4 mm for elephant foot.
 
 ## 0. Universal rules
 
-- **Holes print small, pegs print large.** A 45 mm hole printed 44.80 mm on a calibrated PLA printer; matching ISO 286 clearance fits needed a slicer hole expansion of 0.13 mm (per side) [10]. One fit-test model reports press fit at 0.00 mm offset and sliding from +0.20 mm [12]. So "nominal = press fit" for holes in the XY plane is a reasonable first guess on a tuned MK3S+.
-- **Orientation changes the fit.** The same joint needed 0.15 mm horizontal vs 0.2 mm vertical in PETG on a Prusa MK4S [2]. A dovetail test model prints one copy in each orientation for this reason [13]. Coupon-test in the same orientation as the part.
-- **Layer adhesion is the weak axis.** Standing (Z) vs lying tensile: PLA 37–40 vs ~60 MPa (≈65%) at 200–250 °C; PETG 30–32 vs 55 MPa (≈55–58%) at 230–245 °C, worse when printed cold [9]. Any joint feature loaded in bending or tension *across* layers (a vertical peg, a dovetail neck stacked in Z) fails there first.
+- **Holes print small, pegs print large.** A 45 mm hole printed 44.80 mm on a calibrated PLA printer; matching ISO 286 clearance fits needed a slicer hole expansion of 0.13 mm (per side) [10]. One fit-test model reports press fit at 0.00 mm offset and sliding from +0.20 mm [12]. So "nominal hole = press fit" is a reasonable first guess for XY holes.
+- **Orientation changes the fit.** The same joint needed 0.15 mm horizontal vs 0.2 mm vertical in PETG on a Prusa MK4S [2]. Coupon-test in the part's orientation [13].
+- **Layer adhesion is the weak axis.** Standing (Z) vs lying tensile: PLA 37–40 vs ~60 MPa (≈65%) at 200–250 °C; PETG 30–32 vs 55 MPa (≈55–58%) at 230–245 °C, worse when printed cold [9]. Features loaded across layers (vertical pegs, Z-stacked dovetail necks) fail there first.
 - **Interlocks are much weaker than solid.** In a PLA tensile study (100% infill, 0.2 mm layers) the best interlock (C-shaped, 5 mm neck) reached 7 MPa, only ~16% of the 44.4 MPa solid specimen; dovetail and T-shapes were weaker. Thickening the neck to 7 mm *reduced* strength [22]. Size interlocks for location and shear, not for primary tension.
 - **Repeated assembly loosens interference.** Second press-in of the same PETG seat needed ~33% less force and pull-out dropped ~17% [4]. Printed press fits are effectively single-use.
 - Chamfer or radius lead-in edges: eases assembly and reduces stress concentrations [6][8].
 
 ## 1. Sliding joints: dovetails, T-slots, rails
 
-**When:** location + retention in two axes with assembly along the third (drawer slides, sensor mounts, interchangeable tool heads, lids). Retention against lift-off comes from the undercut; the slide axis needs an end stop.
+**When:** location and retention in two axes, assembly along the third (slides, swappable mounts, lids). The slide axis needs an end stop.
 
 **Geometry and play [derived].** Let α = flank angle from the normal to the base (the undercut angle), c = clearance normal to each flank.
 - Lift-off play (normal to base): Δz = c / sin α. At c = 0.2 mm: α = 15° → 0.77 mm; 30° → 0.40 mm; 45° → 0.28 mm. Small woodworking angles (1:6 ≈ 9.5°) give large play in plastic; **use α = 30–45°**.
-- Lateral play when seated on the floor: ±c / cos α. Under lift-off load both flanks contact and the joint self-centers with zero lateral play; this is why a dovetail loaded away from its base locates well.
+- Lateral play when seated on the floor: ±c / cos α. Under lift-off load both flanks contact and the joint self-centers with zero lateral play.
 - To get flank clearance c from a horizontal offset, widen the cutter by c / cos α per side (see snippet).
 - Leave a floor gap ≥ c so the flanks, not the floor, set the fit.
 
@@ -54,7 +54,7 @@ Calibrate first: a printer with an accurate 20 mm cube can still print holes 0.1
 
 **End stops and detents.** Blind the female channel at one end (a 2–3 mm wall) for a hard stop. For a friction detent, reduce clearance to ~0 over the last 3–5 mm, or add a 0.2–0.3 mm bump on a flexing tongue **[unverified; flexing detents belong to the snap-fit file]**.
 
-**Failure modes:** neck tears along layer lines; binding from elephant foot on the bottom flank (chamfer 0.4 mm); wear-in loosening on PLA; creep under sustained preload.
+**Failure modes:** neck tears along layers; elephant foot binds the bottom flank; wear-in and creep loosen it.
 
 ```python
 from build123d import *
@@ -75,13 +75,11 @@ female = Box(30, L, 10, align=(Align.CENTER, Align.CENTER, Align.MIN))
 groove = [(x, 10 - y) for x, y in tail_pts(10, H + C, A, C)]      # opening at top face, floor gap C
 female -= extrude(Plane.XZ * Polygon(*groove, align=None), amount=L / 2 + 1, both=True)
 ```
-Both parts print base-down with no supports (verified to build and render). For a taper, loft two profiles of different `w_root` instead of extruding.
+Both parts print base-down without supports (snippet tested in build123d 0.13). For a taper, loft two profiles with different `w_root`.
 
 ## 2. Pins and dowels
 
-**When:** alignment between parts (with other retention), hinge axles, shear keys.
-
-**Steel dowel pins (preferred for shear and wear).** Holes in XY (vertical axis) are rounder and more accurate than horizontal holes.
+**Steel dowel pins (preferred for shear and wear).** Use vertical-axis holes (rounder, more accurate).
 - Press fit: CAD hole at nominal to +0.1 mm diametral; printed undersize supplies the interference [10][12].
 - Tight/snug: +0.26 mm diametral (0.13 mm per side), or +0.36 mm if a small gap is fine; use solid infill around the hole so it can be drilled/reamed [11]. Drilling or reaming to final size is the most repeatable route for precision seats [26].
 - Sources disagree by ~0.2 mm on what "nominal" yields; always run a coupon (§7).
@@ -104,8 +102,8 @@ pin &= Box(d, l, d, align=(Align.CENTER, Align.CENTER, Align.MIN))     # trim be
 **Measured bearing seat (PETG, peer-reviewed) [4].** 25.8 mm CAD bore for a 26 mm OD bearing (0.2 mm diametral nominal interference), Cura, 0.2 mm layers, 3 walls, 3 top/bottom, 20% gyroid, 235 °C. Press-in peak ≈ 600 N, pull-out ≈ 300 N. Second cycle: ≈ 400 N in, < 250 N out. Note: the paper calls this a "608", but a 608 is 22 mm OD; 26 mm OD is a 6000. The interference figures stand either way. For a 608 with the bore axis vertical, scale to 22.0–22.1 mm CAD for press and trial in 0.05 mm steps (community 608 parts ship ±0.05 mm variants) **[derived from 4, 12]**.
 
 **Design rules for bearing seats.**
-- Print the bore axis vertical (round, accurate perimeters). Add a 1–1.5 mm shoulder at the bottom and a 0.5 mm × 45° lead-in chamfer at the entry [26].
-- Too much interference on a thin plastic hoop barely loads the bearing ring but can still eat internal clearance in a small bearing; bearing makers warn excessive press fit removes internal clearance [24]. igus specifies H7 bores for its plastic bushings [24].
+- Print the bore axis vertical (round, accurate perimeters). Add a lead-in chamfer [26] (0.5 mm × 45°) and a 1–1.5 mm bottom shoulder **[derived]**.
+- Bearing makers warn that excessive press fit removes the bearing's internal clearance [24]; igus specifies H7 bores for its plastic bushings [24].
 - Plastic creeps: check the fit again 10–30 min after pressing [26]; nylon creep made press-force prediction unreliable in an MIT dowel study [27]. For long life, add axial retention (shoulder + lip, clip, or cap) rather than relying on the press alone.
 - Prefer PETG for seats: PLA is stiffer and cracks; PETG/nylon tolerate strain but creep [1].
 
@@ -126,7 +124,7 @@ for i in range(n):
 
 ## 4. Keyed, puzzle, tongue-and-groove, mortise-and-tenon, finger joints
 
-- **Tolerances.** FDM interlocks: 0.5 mm conservative (Hubs, Formlabs) [6][7]. Formlabs puzzle example: 0.2 mm offset for small parts, 0.4 mm for large, at a 65° cutout (SLA; use the upper end for FDM) [7]. A finger-style printed joint was stiff at 0.4 mm and moved at 0.5 mm in PLA [28]. Locating (non-moving) joints can use 0.1–0.2 mm per side because they don't need to slide after assembly [3].
+- **Tolerances.** FDM interlocks: 0.5 mm conservative (Hubs, Formlabs) [6][7]. Formlabs puzzle example: 0.2 mm offset for small parts, 0.4 mm for large, at a 65° cutout (SLA; use the upper end for FDM) [7]. A printed PLA rotating (finger-prosthesis) joint was stiff at 0.4 mm, smooth at 0.5 mm [28]. Locating (non-moving) joints can use 0.1–0.2 mm per side because they don't need to slide after assembly [3].
 - **Puzzle/jigsaw (splitting panels):** knob neck ≥ 5 mm; neck shape matters more than size (C-shape beat dovetail and T-shapes; 7 MPa best vs 44.4 MPa solid) [22]. Print panels flat so the knob lies in XY and loads stay in-plane.
 - **Tongue-and-groove:** sliding clearance per side (§Quick ref); tongue ≥ 3 perimeters thick (1.35 mm minimum, ≥ 2 mm loaded, per CLAUDE.md). Chamfer the tongue tip 0.3–0.5 mm.
 - **Mortise-and-tenon:** use square tenons; round tenons suffer layer stepping on FDM [7]. Print the tenon so its length lies in XY (horizontal) if it carries bending. A through-tenon with a cross wedge (tusk tenon) gives a fastener-free, re-tightenable joint (§5).
@@ -136,9 +134,9 @@ for i in range(n):
 
 ## 5. Wedge, cam, friction, and self-tightening joints
 
-- **Wedges and tapers:** a taper below the friction angle (atan μ) self-locks; 1–2° per side on prints [14] (see §1). Use for tapered dovetails, cross-wedges through tenons, and wedge-clamped rails. Drive the wedge along its layers (wedge printed flat) so it doesn't split.
+- **Wedges and tapers:** below the friction angle (atan μ) a taper self-locks; 1–2° per side on prints [14] (§1). Use for tapered dovetails, cross-wedges through tenons, wedge-clamped rails. Print wedges flat so driving loads run along layers.
 - **Cam locks:** an eccentric of offset e moves the follower 2e over a half turn; keep the cam's local slope below the friction angle so it stays put, and print the cam disc flat (XY) so its working edge is perimeters **[derived/unverified]**.
-- **Friction fits** (lids, plugs): 0.0–0.1 mm per side, or one thin flexible lip; they loosen with cycles [4] and with creep [26].
+- **Friction fits** (lids, plugs): 0.0–0.1 mm per side **[derived from 5]**, or one thin flexible lip; they loosen with cycles [4] and creep [26].
 - **Joints that tighten under load:** a dovetail or hook loaded away from its base wedges and self-centers [derived, §1]; orient hooks/undercuts so service load pulls them into engagement, and so the loaded section is in XY.
 
 ## 6. Which load each joint should carry
@@ -157,8 +155,8 @@ for i in range(n):
 - Peg-and-hole block, gaps 0.1 → 0.5 mm in 0.05 mm steps; same orientation, layer height, material, and cooling as the part; test at room temperature; label press / transition / sliding / loose. Largest gap that still presses = your press value; smallest that slides smoothly = sliding value [5].
 - Joint coupons in both orientations (vertical and horizontal), at 0.10/0.15/0.20 mm and 0.10/0.20/0.30 mm [2]; dovetail coupons printed both ways [13].
 - For bearings: print a ring with bores stepping 0.05 mm; recheck after 10–30 min for creep [26]; don't reuse a seat you've pressed twice [4].
-- Measure printed holes with pin gauges or a drill-bit set, not calipers alone; printed bores can be elliptical, so measure at several angles [26]. A 1.75 mm filament hole gauge exists for filament pins [31].
-- In build123d, make clearance a `build(**params)` argument and use `--set` to sweep it (CLAUDE.md workflow).
+- Measure printed holes with pin gauges or a drill-bit set, not calipers alone; printed bores can be elliptical, so measure at several angles [32]. A 1.75 mm filament hole gauge exists for filament pins [31].
+- Make clearance a `build(**params)` argument and sweep it with `--set`.
 
 ## Gaps and conflicts
 
@@ -201,3 +199,4 @@ for i in range(n):
 29. Hackaday, "Glue-in Hinge Design Tries Something Different" (filament-pin hinge; comments on brittleness), 2026. https://hackaday.com/2026/06/12/glue-in-hinge-design-tries-something-different/
 30. Hackaday, "How To Design 3D Printed Pins That Won't Break" (Slant 3D), 2025. https://hackaday.com/2025/12/01/how-to-design-3d-printed-pins-that-wont-break/
 31. Printables, "1.75 mm filament hole gauge" (240168). https://www.printables.com/model/240168-175mm-filament-hole-guage
+32. University of York Technical Support Services wiki, "3DP Tolerances and Fits" (elliptical 26 mm bearing pocket). https://uoy.atlassian.net/wiki/spaces/TSS/pages/286918165/3DP+Tolerances+and+Fits
