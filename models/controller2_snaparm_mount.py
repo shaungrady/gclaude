@@ -248,12 +248,16 @@ def build(
     brace: float = 4.0,
     brace_gap: float = 2.0,
     # Cable channel along A's top inner corner (under the ceiling flange), behind B
-    cable_w: float = 12.0,      # channel width out from the wall plate
+    cable_w: float = 16.0,      # channel width out from the wall plate (to the finger tips)
     cable_h: float = 12.0,      # channel height below the ceiling flange
     cable_entry: float = 4.0,   # slot between the finger lips and the ceiling flange
     finger_n: int = 3,
-    finger_w: float = 5.0,      # finger width along the channel (front to back)
-    finger_t: float = 2.4,      # finger shelf thickness
+    finger_w: float = 6.0,      # finger width along the channel (front to back)
+    finger_root: float = 6.0,   # trunk depth below the channel floor at the wall
+    finger_tip: float = 3.0,    # trunk depth at the tip (tapered bracket)
+    lip_t: float = 3.0,         # lip thickness at its crest
+    finger_round: float = 1.5,  # rounds on the finger's outside corners
+    finger_fillet: float = 2.0, # fillets where the finger meets the wall plate
     a_relief: float = 0.5,
     strip_w: float = 19.0,      # Large hook-and-loop strip width (two on the wall face)
     strip_len: float = 92.0,
@@ -344,8 +348,10 @@ def build(
     # Rounds eat r / tan(30 deg) off each flank end (60-degree corners); keep >= 2 mm of flank contact
     flank_x = rail_h - (dove_round + max(dove_round, dove_fillet)) / math.tan(math.radians(90 - rail_angle)) * math.cos(math.radians(rail_angle))
     assert flank_x >= 2.0, f"dovetail rounds leave only {flank_x:.2f} mm of flank contact"
-    lip = cable_h - cable_entry                    # finger lip rises this far above the shelf bottom
-    assert finger_t < lip <= cable_w + finger_t, "finger lip must rise at <= 45 degrees within the channel"
+    lip = cable_h - cable_entry                    # lip crest height above the channel floor
+    # The lip rises at 45 degrees (the print limit) and needs room for its crest and a flat floor
+    assert lip + lip_t + 3 <= cable_w, "channel too narrow for the 45-degree lip plus a flat floor"
+    assert finger_root >= finger_tip, "finger trunk must taper toward the tip (prints without overhang)"
     assert cable_entry >= 3.5, "cable entry slot too narrow for USB cables"
     assert b_depth + brace_gap + 6 + finger_w * finger_n < depth - 2, "no room for the cable fingers behind B"
     assert a_relief > 0, "controller plate would touch A's front edge"
@@ -512,14 +518,25 @@ def build(
         rz0 = frame_t + fit
         A -= _xz_prism([(xt - lead, rz0 - 0.01), (xt + 0.01, rz0 - 0.01), (xt + 0.01, rz0 + lead)],
                        yr - rail_half(xt) - 1, yr + rail_half(xt) + 1)
-    # Cable fingers: shelves out from the wall plate under the ceiling flange, each
-    # with a lip that rises at 45 degrees (prints without support with A wall-face
-    # down) to leave a `cable_entry` slot below the flange. Behind B only.
-    y_f = y_ceil0 - cable_h - finger_t               # finger shelf bottom
+    # Cable fingers: bracket-shaped arms out from the wall plate under the ceiling
+    # flange, behind B. A tapered trunk (deep at the wall, filleted into the plate)
+    # carries a flat channel floor; a rounded lip curls up at 45 degrees to leave a
+    # `cable_entry` slot below the flange. In A's print (wall face down) the profile
+    # only narrows or widens at <= 45 degrees going up, so no supports.
+    y_floor = y_ceil0 - cable_h                       # channel floor
     x_tip = xa + cable_w
-    x_s = x_tip - (lip - finger_t)                    # where the 45-degree lip starts
-    finger = [(xa - 0.01, y_f), (x_tip, y_f), (x_tip, y_f + lip), (x_s, y_f + finger_t),
-              (xa - 0.01, y_f + finger_t)]
+    x_rise = x_tip - lip_t - lip                      # where the lip starts rising
+    e = finger_fillet * 3 + 1
+    fpts = [(xa - 1, y_floor - finger_root - e), (xa, y_floor - finger_root - e),
+            (xa, y_floor - finger_root),               # trunk underside meets the plate (fillet)
+            (x_tip, y_floor - finger_tip),             # tip, underside corner (round)
+            (x_tip, y_floor + lip),                    # tip, crest outer corner (round)
+            (x_tip - lip_t, y_floor + lip),            # crest inner corner (round)
+            (x_rise, y_floor),                         # foot of the lip (fillet)
+            (xa, y_floor),                             # channel floor meets the plate (fillet)
+            (xa, y_floor + e), (xa - 1, y_floor + e)]
+    r_, f_ = finger_round, finger_fillet
+    finger = _round_poly(fpts, [0, 0, f_, r_, r_, r_, r_, f_, 0, 0])
     z0f, z1f = b_depth + brace_gap + 6, depth - 2 - finger_w
     for i in range(finger_n):
         zf = z0f + (z1f - z0f) * (i / max(finger_n - 1, 1))
