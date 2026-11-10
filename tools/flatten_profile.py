@@ -11,6 +11,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import sys
 import re
 from pathlib import Path
 
@@ -61,8 +62,21 @@ def main():
 
     s = parse(a.bundle)
     cfg: dict[str, str] = {}
+    printer = resolve(s, "printer", a.printer)
+    notes = printer.get("printer_notes", "")
     for kind, name in (("printer", a.printer), ("print", a.print_), ("filament", a.filament)):
-        cfg.update({k: v for k, v in resolve(s, kind, name).items() if k not in META})
+        preset = resolve(s, kind, name)
+        cond = preset.get("compatible_printers_condition", "")
+        # Heuristic compatibility check (PrusaSlicer evaluates the full expression):
+        # test each `printer_notes=~/re/` and `printer_notes!~/re/` clause against this
+        # printer when the condition is a plain AND chain.
+        if kind != "printer" and cond and " or " not in cond:
+            bad = [rx for rx in re.findall(r"printer_notes=~/(.*?)/", cond) if not re.search(rx, notes)]
+            bad += [rx for rx in re.findall(r"printer_notes!~/(.*?)/", cond) if re.search(rx, notes)]
+            if bad:
+                print(f"warning: {kind} preset {name!r} is not for this printer "
+                      f"(condition: {cond})", file=sys.stderr)
+        cfg.update({k: v for k, v in preset.items() if k not in META})
     cfg["printer_settings_id"] = a.printer
     cfg["print_settings_id"] = a.print_
     cfg["filament_settings_id"] = a.filament
@@ -70,7 +84,7 @@ def main():
     header = (f"# Flattened from {a.bundle.name}\n# printer: {a.printer}\n"
               f"# print: {a.print_}\n# filament: {a.filament}\n")
     a.output.parent.mkdir(parents=True, exist_ok=True)
-    a.output.write_text(header + "".join(f"{k} = {v}\n" for k, v in sorted(cfg.items())))
+    a.output.write_text(header + "".join(f"{k} = {v}\n" for k, v in sorted(cfg.items())), encoding="utf-8")
     print(f"wrote {a.output} ({len(cfg)} keys)")
 
 

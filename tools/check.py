@@ -8,6 +8,7 @@ Checks:
   - fits the MK3S+ build volume (250 x 210 x 210 mm)
   - sits on the bed (min Z == 0) and has a usable first-layer contact area
   - overhang area steeper than the threshold (would need supports)
+  - per body: inverted normals, floating above the bed, bodies overlapping each other
 Prints JSON. Exit code 1 on hard failures.
 """
 from __future__ import annotations
@@ -35,6 +36,36 @@ def check(stl: Path, overhang_deg: float = 45.0) -> dict:
     if not mesh.is_winding_consistent:
         errors.append("inconsistent face winding")
 
+    # Per-body checks: an STL may hold several parts laid out for printing.
+    shells = mesh.split(only_watertight=False)
+
+    def inside(a, c):
+        return np.all(a.bounds[0] >= c.bounds[0] - 1e-6) and np.all(a.bounds[1] <= c.bounds[1] + 1e-6)
+
+    # A negative-volume shell inside another body is a sealed cavity (e.g. an
+    # embedded magnet pocket), not an inside-out part.
+    bodies, cavities = [], 0
+    for sh in shells:
+        neg = sh.is_watertight and sh.volume <= 0
+        if neg and any(inside(sh, o) for o in shells if o is not sh and o.volume > 0):
+            cavities += 1
+        else:
+            bodies.append(sh)
+    for i, b in enumerate(bodies):
+        if b.is_watertight and b.volume <= 0:
+            errors.append(f"body {i}: inverted normals (negative volume)")
+        if b.bounds[0][2] - mesh.bounds[0][2] > 1e-3:
+            errors.append(f"body {i}: floats {b.bounds[0][2] - mesh.bounds[0][2]:.2f} mm above the bed")
+    if cavities:
+        warnings.append(f"{cavities} sealed internal cavit{'y' if cavities == 1 else 'ies'} (needs a print pause or is intended?)")
+    for i in range(len(bodies)):
+        for j in range(i + 1, len(bodies)):
+            lo_ = np.maximum(bodies[i].bounds[0], bodies[j].bounds[0])
+            hi_ = np.minimum(bodies[i].bounds[1], bodies[j].bounds[1])
+            if np.all(hi_ - lo_ > 0.01):
+                errors.append(f"bodies {i} and {j} overlap or interlock on the bed "
+                              f"(bounding boxes intersect); they would print fused")
+
     fits = all(s <= b for s, b in zip(size, BED))
     fits_rotated = size[0] <= BED[1] and size[1] <= BED[0] and size[2] <= BED[2]
     if not fits:
@@ -50,7 +81,9 @@ def check(stl: Path, overhang_deg: float = 45.0) -> dict:
     z_face = mesh.triangles_center[:, 2]
     on_bed = (normals[:, 2] < -0.999) & (z_face - lo[2] < 1e-3)
     bed_contact = float(areas[on_bed].sum())
-    if bed_contact < 25:
+    if bed_contact < 1:
+        errors.append("no flat face on the bed (tilted or point contact)")
+    elif bed_contact < 25:
         warnings.append(f"small bed contact area ({bed_contact:.1f} mm^2); adhesion risk")
 
     # Slope measured from horizontal, same convention as PrusaSlicer's
@@ -71,6 +104,7 @@ def check(stl: Path, overhang_deg: float = 45.0) -> dict:
         "warnings": warnings,
         "bbox_mm": [round(float(s), 3) for s in size],
         "volume_cm3": round(float(mesh.volume) / 1000, 3) if mesh.is_watertight else None,
+        "bodies": len(bodies),
         "bed_contact_mm2": round(bed_contact, 1),
         "overhang_mm2": round(overhang_area, 1),
     }

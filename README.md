@@ -28,8 +28,9 @@ python tools/slice.py out/wall_bracket/wall_bracket.3mf --3mf
 
 ## Profiles
 
-`profiles/mk3s_pla_0.20mm.ini` is flattened from PrusaSlicer's bundled
-"0.20mm QUALITY @MK3" / "Prusament PLA" / "Original Prusa i3 MK3S & MK3S+" presets.
+`profiles/mk3s_pla_{0.15,0.20,0.30}mm.ini` are flattened from PrusaSlicer's bundled
+"0.15mm QUALITY", "0.20mm QUALITY" and "0.30mm DRAFT" @MK3 print presets with "Prusament PLA" on
+"Original Prusa i3 MK3S & MK3S+" (`tools/flatten_profile.py`; 0.20 mm is the default).
 To use your own tuned settings instead: in PrusaSlicer select your presets, then
 **File → Export → Export Config** and save into `profiles/`.
 

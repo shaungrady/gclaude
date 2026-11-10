@@ -19,6 +19,14 @@ PrusaSlicer must be on PATH (`prusa-slicer`) or set `PRUSA_SLICER=/path/to/Prusa
 5. Resolve check errors. Treat overhang warnings seriously: reorient, add 45° chamfers instead of flat ceilings, or teardrop horizontal holes before accepting supports.
 6. Slice: `python tools/slice.py out/<name>/<name>.3mf` (add `--3mf` for a project file the user can open in PrusaSlicer). Report time, filament, and anything surprising.
 7. Iterate with `--set key=value` on build.py for parameter tweaks instead of editing defaults.
+   Values are Python literals (`1.5`, `(1, 2)`, `None`); `true`/`false` work too; anything else is a
+   string. `--set` needs a `build()` function. For multi-part designs, check fit and install paths in
+   an `assembled` layout with build123d booleans, and render with `tools/render_scene.py`.
+
+Notes:
+- slice.py `--set` takes PrusaSlicer config-file keys (`support_material=1`, `fill_density=25%`).
+- The PrusaSlicer CLI re-arranges objects on the bed, so a model's print layout only matters when the
+  3MF is opened in the GUI. check.py still flags bodies that overlap or float in the layout.
 
 ## Slicing defaults for functional parts
 
@@ -48,8 +56,10 @@ Before designing any joint between parts (screws, inserts, snaps, dovetails, pin
 - `models/`: part scripts (source of truth; commit these)
 - `tools/build.py`: export + render + check
 - `tools/render.py`: 6-view PNG of an STL
-- `tools/check.py`: watertight, build-volume fit, bed contact, overhangs
+- `tools/render_scene.py`: colored multi-part scenes (exploded/assembled), named views, zoomed close-ups
+- `tools/check.py`: watertight, build-volume fit, bed contact, overhangs; per body: inverted, floating, overlapping
 - `tools/slice.py`: PrusaSlicer CLI wrapper, parses estimates from G-code
 - `tools/flatten_profile.py`: resolve vendor preset inheritance into a single CLI `.ini`
 - `profiles/`: flattened PrusaSlicer `.ini` configs
+- `refs/`: reference data (controller dimensions, joinery library in `refs/joinery/`)
 - `out/`: generated, gitignored

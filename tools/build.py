@@ -32,6 +32,9 @@ def load_module(path: Path):
 
 
 def parse_value(raw: str):
+    """Python literal (1.5, 'x', (1, 2), None); true/false in any case; else a plain string."""
+    if raw.strip().lower() in ("true", "false"):
+        return raw.strip().lower() == "true"
     try:
         return ast.literal_eval(raw)
     except (ValueError, SyntaxError):
@@ -64,6 +67,9 @@ def main() -> int:
             params[k] = parse_value(v)
         part = mod.build(**params)
     elif hasattr(mod, "part"):
+        if args.set:
+            print("error: --set needs a build() function; this script has no build()", file=sys.stderr)
+            return 2
         part = mod.part
     else:
         print("error: script must define build() or `part`", file=sys.stderr)
@@ -89,7 +95,7 @@ def main() -> int:
         "params": params,
         "files": {"step": str(step), "stl": str(stl), "3mf": str(mf)},
         "bbox_mm": [round(bb.size.X, 3), round(bb.size.Y, 3), round(bb.size.Z, 3)],
-        "volume_mm3": round(part.volume, 2),
+        "volume_mm3": round(sum(s.volume for s in part.solids()), 2),
         "solids": len(part.solids()),
         "is_valid": bool(part.is_valid() if callable(part.is_valid) else part.is_valid),
     }

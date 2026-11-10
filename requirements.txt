@@ -1,4 +1,7 @@
-build123d>=0.9
-trimesh>=4.0
-numpy
-matplotlib
+# Pinned to the versions the tools and models were verified with.
+# (build123d behavior differs across versions, e.g. volumes of mirrored compounds.)
+build123d==0.13.0
+cadquery-ocp-novtk==8.0.1.1.0
+trimesh==5.2.0
+numpy==2.5.4
+matplotlib==3.11.2
