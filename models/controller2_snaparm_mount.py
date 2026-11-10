@@ -254,6 +254,14 @@ def build(
     ceiling_w: float = 25.0,
     ceiling_t: float = 3.0,
     ceiling_gap: float = 0.5,
+    # Aesthetics
+    flush_top: bool = True,     # B's top shelf rises flush with A's ceiling flange past its end
+    top_seam: float = 0.2,      # gap between A's flange end and B's raised top
+    b_corner_r: float = 6.0,    # B's outer corners (matches the controller plate's corner radius)
+    a_back_r: float = 3.0,      # A's back corners
+    a_front_r: float = 2.0,     # A's front-bottom corner
+    edge_chamfer: float = 1.0,  # front top edge (A and B alike) and A's front edges
+    shelf_curve: bool = True,   # concave shelf profile instead of a straight taper
     brace: float = 4.0,
     brace_gap: float = 2.0,
     # Cable channel along A's top inner corner (under the ceiling flange), behind B
@@ -480,9 +488,34 @@ def build(
             (x0, yr - groove_half(x0) - e), (xg, yr - gh - e), (xg, yr + gh + e), (x0, yr + groove_half(x0) + e),
             align=None)
         B -= loft([sec(b_depth - lead, 0), sec(b_depth + 0.01, lead)])
-    shelf = [(xb, frame_t), (W, frame_t), (W, frame_t + shelf_tip), (xw, b_depth), (xb, b_depth)]
+    if shelf_curve:
+        # Concave sweep from the far end up to the wall side (quadratic Bezier): reads
+        # as a bracket rather than a brace. In B's print it's the shelf's top edge.
+        p0, p2 = (W, frame_t + shelf_tip), (xw, b_depth)
+        p1 = (xw + 10, frame_t + shelf_tip)
+        sweep = [((1 - t) ** 2 * p0[0] + 2 * (1 - t) * t * p1[0] + t ** 2 * p2[0],
+                  (1 - t) ** 2 * p0[1] + 2 * (1 - t) * t * p1[1] + t ** 2 * p2[1])
+                 for t in [i / 16 for i in range(17)]]
+        shelf = [(xb, frame_t), (W, frame_t)] + sweep + [(xb, b_depth)]
+    else:
+        shelf = [(xb, frame_t), (W, frame_t), (W, frame_t + shelf_tip), (xw, b_depth), (xb, b_depth)]
     B += _xz_prism(shelf, 0, shelf_t)
     B += _xz_prism(shelf, H - shelf_t, H)
+    x_flush = xa + ceiling_w + top_seam                # B's raised top starts past A's flange
+    if flush_top:
+        raised = _xz_prism(shelf, H - 0.01, y_top) + _box(xb, W, H - 0.01, y_top, 0, frame_t)
+        B += raised & _box(x_flush, W + 1, H - 1, y_top + 1, -1, b_depth + 1)
+    yB_top = y_top if flush_top else H
+    # B's outer corners (far from the wall): radius matching the controller plate's
+    for yc_, sy_ in ((b_corner_r, -1), (yB_top - b_corner_r, 1)):
+        cut = _box(W - b_corner_r, W + 1, yc_, yc_ + sy_ * (b_corner_r + 1), -1, b_depth + 1) \
+            if sy_ > 0 else _box(W - b_corner_r, W + 1, yc_ - b_corner_r - 1, yc_, -1, b_depth + 1)
+        cut -= _zcyl(W - b_corner_r, yc_, 2 * b_corner_r, -2, b_depth + 2)
+        B -= cut
+    # Front top edge chamfer (matches A's)
+    if flush_top:
+        c = edge_chamfer
+        B -= _yz_prism([(y_top - c, -0.01), (y_top + 0.01, -0.01), (y_top + 0.01, c)], x_flush - 1, W + 1)
     for sx in (-1, 1):
         for sy in (-1, 1):
             x, y = sx * hx, cy + sy * hy
@@ -558,6 +591,23 @@ def build(
         tri = [(y0, a_relief - 0.01), (y0 + s_ * key_chamfer, a_relief - 0.01), (y0, a_relief + key_chamfer)]
         A -= _yz_prism(tri, -W - 0.01, xa + 0.01)     # _yz_prism extrudes along +X either winding
     A += fork_arms()
+    # A's corners and front edges
+    xa0, xa1 = -W - 1, xa + ceiling_w + 1
+    for (yc_, zc_, r_, ys, zs) in ((a_back_r, depth - a_back_r, a_back_r, -1, 1),
+                                   (y_top - a_back_r, depth - a_back_r, a_back_r, 1, 1),
+                                   (a_front_r, a_relief + a_front_r, a_front_r, -1, -1)):
+        y0_, y1_ = sorted((yc_, yc_ + ys * (r_ + 1)))
+        z0_, z1_ = sorted((zc_, zc_ + zs * (r_ + 1)))
+        A -= _box(xa0, xa1, y0_, y1_, z0_, z1_) - _xcyl(yc_, zc_, r_, xa0 - 1, xa1 + 1)
+    c = edge_chamfer
+    zf = a_relief
+    # front top edge (plate + flange), along X
+    A -= _yz_prism([(y_top - c, zf - 0.01), (y_top + 0.01, zf - 0.01), (y_top + 0.01, zf + c)], xa0, xa1)
+    # flange's front-underside edge, along X
+    A -= _yz_prism([(y_ceil0 - 0.01, zf - 0.01), (y_ceil0 + c, zf - 0.01), (y_ceil0 - 0.01, zf + c)],
+                   xa + 0.5, xa1)
+    # plate's front inner edge, along Y (below the flange)
+    A -= _xz_prism([(xa - c, zf - 0.01), (xa + 0.01, zf - 0.01), (xa + 0.01, zf + c)], -1, y_ceil0)
 
     if layout == "fit_test":
         # B's flat frame (screw spacing and pilots) + a "spine" pair cut from the real
