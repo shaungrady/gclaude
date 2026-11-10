@@ -39,6 +39,10 @@ The MK3S+ takes plain `.gcode` (not binary `.bgcode`).
 - Heat-set inserts (M3): hole 4.0–4.2 mm, depth insert length + 1 mm. Nut traps: M3 hex 5.5 mm flats + 0.3 mm.
 - MK3S+ build volume: 250 × 210 × 210 mm.
 
+## Joinery reference
+
+Before designing any joint between parts (screws, inserts, snaps, dovetails, pins, press fits, glue, splits, adhesive mounting), read `refs/joinery/README.md` and the relevant doc(s) there. Prefer their numbers over the short rules above, and mind the [derived]/[unverified] tags.
+
 ## Layout
 
 - `models/`: part scripts (source of truth; commit these)
