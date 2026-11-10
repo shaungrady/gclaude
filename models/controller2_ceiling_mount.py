@@ -1,7 +1,9 @@
 """Cabinet ceiling mount for the AC Infinity Controller 2 (AI-ATC), screwed.
 
 One piece: a ceiling flange (Command strips) with an inverted-U front frame
-hanging from its front edge. The controller's plate screws to the frame's
+hanging from its front edge, and a full left side plate that sits flat on the
+cabinet's left wall (more Command strips; 45 x 79.5 mm fits two Medium strips
+running vertically). The controller's plate screws to the frame's
 front face through its 4 holes; its body passes through the opening. The
 frame is open at the bottom so it prints without bridging the 114 mm cutout,
 and the body's rear ports stay fully accessible.
@@ -47,6 +49,8 @@ def build(
     flange_t: float = 3.0,
     flange_depth: float = 45.0, # room for 2 Command strips side by side
     gusset_t: float = 3.0,
+    side_plate: bool = True,    # left wall plate instead of the left gusset
+    side_plate_t: float = 3.0,
     corner_brace: float = 2.0,  # 45 deg brace along the frame/flange inside corner
     layout: str = "print",      # "print" or "assembled"
     show_unit: bool = False,
@@ -62,9 +66,15 @@ def build(
     # Front frame: top rail + two legs (open bottom)
     part += _box(-W, W, cut_top, yc, 0, frame_t)
     leg = _box(cut_x, W, 0, yc, 0, frame_t)
-    # Gusset at the outer edge (the left one sits flush on the cabinet wall)
-    leg += _prism_yz([(0, frame_t), (yc, frame_t), (yc, flange_depth)], W - gusset_t, W)
     part += leg + mirror(leg, about=Plane.YZ)
+    # Right: triangular gusset at the outer edge
+    part += _prism_yz([(0, frame_t), (yc, frame_t), (yc, flange_depth)], W - gusset_t, W)
+    # Left: full side plate, flush on the cabinet wall, for wall-mounted strips
+    # (on the wall they load in shear, as 3M rates them, instead of peel)
+    if side_plate:
+        part += _box(-W, -W + side_plate_t, 0, yc, 0, flange_depth)
+    else:
+        part += _prism_yz([(0, frame_t), (yc, frame_t), (yc, flange_depth)], -W, -W + gusset_t)
     # Brace along the inside corner between frame and flange, over the body
     if corner_brace > 0:
         y0 = yc - flange_t
