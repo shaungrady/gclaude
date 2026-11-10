@@ -19,21 +19,38 @@ Concept
     retention faces.
 
 Use / assembly
-  0. Print layout="fit_test": B's flat frame (hold it on the controller to check
-     screw spacing and pilots) plus a "spine" pair: the wall-side strip of A
-     (plate, both dovetail rails, snap fork) and of B (grooves, tooth, mouth key,
-     left screw bosses), cut from the real parts. Slide them together to check
-     the dovetail fit, the click and the pull-off before printing the full parts.
+  0. Before printing anything, measure the controller's screw spacing with
+     calipers: 123 mm (template, photo) or 120 (website). At 120 the wall-side
+     pilots break into B's side web (an assert stops the build): redesign first.
+     Print layout="fit_test":
+     - B's flat frame: hold it on the controller to check the hole positions.
+     - A "spine" pair cut from the real parts: A's wall-side strip (plate, both
+       rails, snap fork) and B's wall-side strip (grooves, tooth, mouth key, foot,
+       wall-side screw bosses). Clamp spine A face down to a board (holding it in
+       the hand lets the thin plate flex). Slide spine B on: it should slide
+       without binding or wobble, then click. To measure pull-off, drive two box
+       screws into spine B's bosses, tie a string between the heads, and pull with
+       a luggage scale (estimate 7 to 35 N, i.e. 0.7 to 3.5 kg).
+     - A pilot ladder (2.2 to 3.0 mm, notch at the 2.2 end): use it to pick
+       pilot_d for the box screws.
+     Results: binds -> fit=0.16; wobbles > ~0.3 mm -> fit=0.08 (fit also resizes
+     the hook and slots, so reprint both spines). No clear click or < ~7 N ->
+     hook=1.6; too hard to push on or > ~40 N to pull off -> arm_h=1.8. Whitening
+     at the arm roots after ~10 cycles: stop, redesign.
+     Optional: layout="cable_test" (two fingers + a fingertip) to try the real
+     cables in the 4 mm slot.
   1. Screw the controller to B on the bench.
   2. Stick A to the cabinet wall (two Large strips, along the plate in the bands
      above and below the fork window; keep the arms free) and to the ceiling.
   3. Slide B straight back onto A's rails until it clicks: push on the controller's
      front plate at its wall-side margin, at mid-height (the ~20 mm strip between
      the plate's wall-side edge and the buttons).
-  Remove: unplug or slacken the cables, peel A off its hook-and-loop strips (the
-  whole assembly comes away), then on the bench hold A and push B off its rails
-  with both hands close to the rails (thumbs on B's wall-side frame). The tooth's
-  V spreads the arms and B slides out.
+  Remove: unplug or slacken the cables, then take the whole assembly off: pull the
+  controller sideways away from the wall (that peels the wall strips; B can't
+  leave A in that direction), then down (peels the ceiling strip). Don't pull it
+  toward you: that pops the snap and racks B in the rails. On the bench, hold A
+  and push B off its rails with both hands close to the rails (thumbs on B's
+  wall-side frame). The tooth's V spreads the arms and B slides out.
   (In place there's nothing to pull on near the rails' center: the controller's
   top edge sits 0.5 mm under A's ceiling flange, and pulling anywhere far from the
   rails racks B in them.)
@@ -54,7 +71,9 @@ Use / assembly
   then tuck it toward the wall and under each fingertip; the fingertips hang below
   the lip crest so the cables can't ride back out. The front ~40 mm of the corner is
   taken by B and the controller, so cables can't pass the mount there.
-  Ceiling strip: the ceiling flange's strip face prints as a vertical wall; a
+  Ceiling strip: keep it >= 2 mm in from the flange's front and outer edges (B's
+  raised top sits 0.5 mm below the flange top and passes beside it). The flange's
+  strip face prints as a vertical wall; a
   seam line may land on it (paint the seam elsewhere in PrusaSlicer if so). If the
   cabinet ceiling runs above ~35 C, use PETG and VHB or Dual Lock instead (fine
   layer lines), not on the bed; sand it flat before sticking the strip.
@@ -256,7 +275,9 @@ def build(
     ceiling_gap: float = 0.5,
     # Aesthetics
     flush_top: bool = True,     # B's top shelf rises flush with A's ceiling flange past its end
-    top_seam: float = 0.2,      # gap between A's flange end and B's raised top
+    top_seam: float = 0.4,      # gap between A's flange end and B's raised top (>= 0.3 stays open)
+    top_drop: float = 0.5,      # B's raised top and façade sit this far below A's flange top, so
+                                # they never touch the ceiling strip (still reads as flush)
     b_corner_r: float = 6.0,    # B's outer corners (matches the controller plate's corner radius)
     a_back_r: float = 3.0,      # A's back corners
     a_front_r: float = 2.0,     # A's front-bottom corner
@@ -264,7 +285,9 @@ def build(
     shelf_curve: bool = True,   # concave shelf profile instead of a straight taper
     facade: bool = True,        # B's front covers A's front edges along the top and wall-side corners
     facade_t: float = 1.6,      # façade thickness (4 extrusion widths' worth of layers)
-    facade_gap: float = 0.3,    # façade to A's recessed front
+    facade_gap: float = 0.3,    # façade to A's recessed front (Z)
+    facade_ygap: float = 0.45,  # façade corner pieces to A's recess edges (Y): looser than the
+                                # dovetail play so the façade never locates B
     brace: float = 4.0,
     brace_gap: float = 2.0,
     # Cable channel along A's top inner corner (under the ceiling flange), behind B
@@ -352,9 +375,12 @@ def build(
                       z_root - z_ft, E_mpa, mu, lead_angle, ret_angle)
 
     # ---- asserts: real geometric and strength constraints ----
-    assert layout in ("print", "assembled", "fit_test"), f"unknown layout {layout!r}"
+    assert layout in ("print", "assembled", "fit_test", "cable_test"), f"unknown layout {layout!r}"
     assert body_w < cut_w and body_h < cut_h, "body must fit the opening"
     assert xw <= xl, "B's side web must sit on the frame's left leg"
+    # The wall-side pilots run through B's side web: keep a real wall to its outer face.
+    # (Fails loudly if the screw spacing turns out to be 120 mm: that needs a redesign.)
+    assert xw - (-hole_dx / 2 + pilot_d / 2) >= min_wall, "wall-side screw pilots break into B's side web"
     assert hx + boss_d / 2 <= W and hx - boss_d / 2 > body_w / 2, "right bosses must clear body and edge"
     assert shelf_t < body_b and H - shelf_t > body_t, "shelves hit the body"
     for yr in rys:
@@ -495,7 +521,7 @@ def build(
         # Concave sweep from the far end up to the wall side (quadratic Bezier): reads
         # as a bracket rather than a brace. In B's print it's the shelf's top edge.
         p0, p2 = (W, frame_t + shelf_tip), (xw, b_depth)
-        p1 = (xw + 10, frame_t + shelf_tip)
+        p1 = (xw + 25, frame_t + shelf_tip + 6)
         sweep = [((1 - t) ** 2 * p0[0] + 2 * (1 - t) * t * p1[0] + t ** 2 * p2[0],
                   (1 - t) ** 2 * p0[1] + 2 * (1 - t) * t * p1[1] + t ** 2 * p2[1])
                  for t in [i / 16 for i in range(17)]]
@@ -506,9 +532,10 @@ def build(
     B += _xz_prism(shelf, H - shelf_t, H)
     x_flush = xa + ceiling_w + top_seam                # B's raised top starts past A's flange
     if flush_top:
-        raised = _xz_prism(shelf, H - 0.01, y_top) + _box(xb, W, H - 0.01, y_top, 0, frame_t)
-        B += raised & _box(x_flush, W + 1, H - 1, y_top + 1, -1, b_depth + 1)
-    yB_top = y_top if flush_top else H
+        yr_ = y_top - top_drop
+        raised = _xz_prism(shelf, H - 0.01, yr_) + _box(xb, W, H - 0.01, yr_, 0, frame_t)
+        B += raised & _box(x_flush, W + 1, H - 1, yr_ + 1, -1, b_depth + 1)
+    yB_top = y_top - top_drop if flush_top else H
     # B's outer corners (far from the wall): radius matching the controller plate's
     for yc_, sy_ in ((b_corner_r, -1), (yB_top - b_corner_r, 1)):
         cut = _box(W - b_corner_r, W + 1, yc_, yc_ + sy_ * (b_corner_r + 1), -1, b_depth + 1) \
@@ -527,7 +554,11 @@ def build(
     if flush_top:
         c = edge_chamfer
         x0c = -W - 1 if facade else x_flush - 1
-        B -= _yz_prism([(y_top - c, -0.01), (y_top + 0.01, -0.01), (y_top + 0.01, c)], x0c, W + 1)
+        B -= _yz_prism([(yB_top - c, -0.01), (yB_top + 0.01, -0.01), (yB_top + 0.01, c)], x0c, W + 1)
+        # Chamfer the façade's back top edge too, so it can't catch a ceiling strip edge
+        if facade:
+            B -= _yz_prism([(yB_top - c, facade_t + 0.01), (yB_top + 0.01, facade_t + 0.01),
+                            (yB_top + 0.01, facade_t - c)], -W - 1, x_flush + 0.02)
     for sx in (-1, 1):
         for sy in (-1, 1):
             x, y = sx * hx, cy + sy * hy
@@ -624,23 +655,42 @@ def build(
         # Step A's front back where B's façade covers it
         zr = facade_t + facade_gap
         A -= _box(-W - 1, x_flush - top_seam + 1, H - facade_gap, y_top + 1, -1, zr)
-        A -= _box(-W - 1, xa + 0.01, H - b_corner_r - facade_gap, H, -1, zr)
-        A -= _box(-W - 1, xa + 0.01, -1, b_corner_r + facade_gap, -1, zr)
+        A -= _box(-W - 1, xa + 0.01, H - b_corner_r - facade_ygap, H, -1, zr)
+        A -= _box(-W - 1, xa + 0.01, -1, b_corner_r + facade_ygap, -1, zr)
 
     if layout == "fit_test":
         # B's flat frame (screw spacing and pilots) + a "spine" pair cut from the real
         # parts: A's wall-side strip (plate, rails, snap fork; no ceiling flange,
         # brace or cable fingers) and B's wall-side strip (grooves, tooth, mouth key,
         # left bosses). Tests the dovetail fit, the click and the pull-off.
-        spine_a = A & _box(-W - 1, xa + max(rail_h, arm_above) + 1, -1, H, -1, b_depth + 1)
-        spine_b = B & _box(xb - 1, xw + 0.5, -1, H + 1, -1, b_depth + 1)
+        z_end = max(b_depth, z_root + rib_ext + arm_above) + 1     # keep the arms' full ribs
+        spine_a = A & _box(-W - 1, xa + max(rail_h, arm_above) + 1, -1, H, -1, z_end)
+        spine_b = B & _box(-W - 1, xw + 0.5, -1, H, -1, b_depth + 1)   # full tooth, key, foot
+        assert len(spine_a.solids()) == 1 and len(spine_b.solids()) == 1, "a spine fell apart"
+        # Pilot ladder: 8 mm deep vertical holes, 2.2 to 3.0 mm (left to right; the
+        # notch marks the 2.2 end). Drive a box screw into each; pick the smallest
+        # that takes the screw without splitting and holds hand-tight; set pilot_d.
+        ladder_d = [2.2, 2.4, 2.6, 2.8, 3.0]
+        lad = _box(0, 8 * len(ladder_d) + 2, 0, 9, 0, 10)
+        for i, d_ in enumerate(ladder_d):
+            lad -= _zcyl(5 + 8 * i, 4.5, d_, 2, 11)
+        lad -= _box(-0.01, 1.5, 7.5, 9.01, -1, 11)                     # notch at the 2.2 end
         f = _lay_flat(_m(frame))
         a_ = _lay_flat(Rot(0, 90, 0) * _m(spine_a))                     # wall face (+X) down
         b_ = _lay_flat(_m(spine_b))                                     # front face down
         y1 = f.bounding_box().max.Y + 10
         a_ = Pos(0, y1, 0) * a_
         b_ = Pos(a_.bounding_box().max.X + 10, y1, 0) * b_
-        return Compound(children=[f, a_, b_])
+        l_ = Pos(b_.bounding_box().max.X + 10, y1, 0) * _lay_flat(lad)
+        return Compound(children=[f, a_, b_, l_])
+
+    if layout == "cable_test":
+        # A short section of A with two cable fingers and the fingertip between them,
+        # to try the real cables in the slot. Prints wall face down like A.
+        zf0, zf1 = zfs[0] - 2, zfs[1] + finger_w + 2
+        cab = A & _box(-W - 1, xa + cable_w + 1, y_floor - finger_root - 6, y_top + 1, zf0, zf1)
+        assert len(cab.solids()) == 1, "cable coupon fell apart"
+        return Compound(children=[_lay_flat(Rot(0, 90, 0) * _m(cab))])
 
     A, B = _m(A), _m(B)                  # wall to +X: the viewer's left
     if layout == "assembled":
