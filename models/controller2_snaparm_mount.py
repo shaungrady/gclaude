@@ -262,6 +262,9 @@ def build(
     a_front_r: float = 2.0,     # A's front-bottom corner
     edge_chamfer: float = 1.0,  # front top edge (A and B alike) and A's front edges
     shelf_curve: bool = True,   # concave shelf profile instead of a straight taper
+    facade: bool = True,        # B's front covers A's front edges along the top and wall-side corners
+    facade_t: float = 1.6,      # façade thickness (4 extrusion widths' worth of layers)
+    facade_gap: float = 0.3,    # façade to A's recessed front
     brace: float = 4.0,
     brace_gap: float = 2.0,
     # Cable channel along A's top inner corner (under the ceiling flange), behind B
@@ -512,10 +515,19 @@ def build(
             if sy_ > 0 else _box(W - b_corner_r, W + 1, yc_ - b_corner_r - 1, yc_, -1, b_depth + 1)
         cut -= _zcyl(W - b_corner_r, yc_, 2 * b_corner_r, -2, b_depth + 2)
         B -= cut
-    # Front top edge chamfer (matches A's)
+    # Façade: B's front face continues over A's front edges along the top (in front of
+    # A's ceiling flange and wall plate) and down into the wall-side corners, where
+    # the controller plate's rounded corners would otherwise show A's edge.
+    if facade:
+        fz = facade_t
+        B += _box(-W, x_flush + 0.01, H - 0.01, yB_top, 0, fz)                  # top strip
+        B += _box(-W, xb + 0.01, H - b_corner_r, H + 0.01, 0, fz)               # top wall-side corner
+        B += _box(-W, xb + 0.01, 0, b_corner_r, 0, fz)                          # bottom wall-side corner
+    # Front top edge chamfer, across the full width when the façade covers A
     if flush_top:
         c = edge_chamfer
-        B -= _yz_prism([(y_top - c, -0.01), (y_top + 0.01, -0.01), (y_top + 0.01, c)], x_flush - 1, W + 1)
+        x0c = -W - 1 if facade else x_flush - 1
+        B -= _yz_prism([(y_top - c, -0.01), (y_top + 0.01, -0.01), (y_top + 0.01, c)], x0c, W + 1)
     for sx in (-1, 1):
         for sy in (-1, 1):
             x, y = sx * hx, cy + sy * hy
@@ -608,6 +620,12 @@ def build(
                    xa + 0.5, xa1)
     # plate's front inner edge, along Y (below the flange)
     A -= _xz_prism([(xa - c, zf - 0.01), (xa + 0.01, zf - 0.01), (xa + 0.01, zf + c)], -1, y_ceil0)
+    if facade:
+        # Step A's front back where B's façade covers it
+        zr = facade_t + facade_gap
+        A -= _box(-W - 1, x_flush - top_seam + 1, H - facade_gap, y_top + 1, -1, zr)
+        A -= _box(-W - 1, xa + 0.01, H - b_corner_r - facade_gap, H, -1, zr)
+        A -= _box(-W - 1, xa + 0.01, -1, b_corner_r + facade_gap, -1, zr)
 
     if layout == "fit_test":
         # B's flat frame (screw spacing and pilots) + a "spine" pair cut from the real
