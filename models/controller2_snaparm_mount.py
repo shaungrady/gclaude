@@ -22,16 +22,30 @@ Use / assembly
   1. Screw the controller to B on the bench.
   2. Stick A to the cabinet wall (two Large strips, along the plate in the bands
      above and below the fork window; keep the arms free) and to the ceiling.
-  3. Slide B straight back onto A's rails until it clicks (~7 N push).
-  Remove: pull the controller straight forward (~14 N, see below). The tooth's V
-  spreads the arms and B slides out; leave ~40 mm of cable slack.
+  3. Slide B straight back onto A's rails until it clicks, pushing on B's finger
+     tab (below the controller's bottom-left corner, next to the wall).
+  Remove: pull the finger tab straight forward. The tooth's V spreads the arms and
+  B slides out; leave ~40 mm of cable slack.
+
+  Push and pull only at the tab (or grip the controller's top and bottom edges
+  within ~15 mm of the wall). The rails are at the wall and engage only ~36 mm, so
+  a push or pull at the controller's center twists B in them like a drawer pulled
+  by one corner: friction locks it (it jams once the force is more than about
+  L / (3 mu) ~ 24 mm from the rail line, mu ~0.5 unverified), and the twist pries
+  A's rail ends off the wall. At the tab the force is ~5 mm from the rails.
+
+  Wall strips: two Large strips (19 x 92 mm) running front to back in the bands
+  above and below the fork window: y 0 to 29.8 and 49.2 to 82.5 mm from A's bottom
+  edge at the default fit. Keep the arms free.
 
 Load path
   Weight and its twisting moment: dovetail rails (B can't leave the wall or drop).
   Push back (button presses): B's frame seats on the rail fronts.
+  Removal/installation force: apply at the finger tab (see above).
   Forward pull only: tooth -> hooks -> arms. The hook forces are symmetric in Y,
   so B is not pushed sideways in the dovetails, and no X force reaches the arms.
-  The arms are unloaded when seated (0.3 mm Y gap each side, 0.3 mm Z gap).
+  The arms are unloaded when seated (>= 0.2 mm Y gap each side after dovetail
+  play, 0.3 mm Z gap at the hooks).
 
 Print orientations
   A: wall face (bed side, smooth PEI) down; in-use X vertical, layers are in-use YZ
@@ -43,15 +57,19 @@ Print orientations
 
 Key numbers (refs/joinery/snap_fits.md formulas, [derived] here)
   Arm: L = 26 mm (root to hook land), h = 2.25 mm (5 x 0.45 extrusion width),
-  b = 6.5 mm, constant section, root fillets 1.0 / 1.2 mm (0.44 h / 0.53 h).
-  Deflection per arm: hook 1.3 - gap 0.3 = 1.0 mm nominal, 1.14 mm with B's Y play
-  (dovetail fit 0.12 / cos 30). Strain eps = y h / (0.67 L^2) = 0.50% nominal,
-  0.57% worst, bending stress along the layers; limit 1.2% repeated in-layer PLA.
-  The outer slot (2.0 mm) is a hard stop: eps at the stop 0.83% < 2.0% one-time.
-  Engagement after play: 1.3 - 0.3 - 0.14 = 0.86 mm (>= 0.5 rule of section 4).
-  Forces (E = 2.2 GPa, mu = 0.5, unverified): P = b h^2 E eps / (6 L) = 2.3 N
-  per arm; push-on 2 x 1.51 P = 7 N; pull-off at 45 degrees 2 x 3.0 P = 14 N
-  (9 to 19 N for mu 0.3 to 0.6).
+  b = 6.5 mm, constant section, root fillets 1.0 / 1.2 mm. The above-plate rib runs
+  8 mm past the root so the arm's upper half has in-layer anchorage.
+  At fit 0.12: dovetail Y play 0.22 mm (incl. X shift), seated tooth gap 0.42 mm
+  (0.2 mm after play), hook 1.39 mm, engagement 0.75 mm after play, worst-case
+  strain 0.59% along the layers (limit 1.2% repeated in-layer PLA, [derived]).
+  At fit 0.20: hook 1.68 mm, strain 0.74%. The outer slot (>= 2.0 mm) is a hard
+  stop against over-bending.
+  Forces: formula estimates only (E 2.2 to 3.3 GPa, mu 0.3 to 0.6, arm/hook print
+  tolerance +/-0.1 mm give roughly 7 to 35 N pull-off). Measure on the fit_test
+  coupon before printing the full parts.
+  Clearances follow `fit`: the tooth-to-arm gap and arm-tip gap are derived from
+  the dovetail play (including the extra Y play when B shifts in X), and the hook
+  height is sized for >= 0.75 mm engagement after that play.
   Dovetails: baseline values (fit 0.12, flank 30 deg), interlocking_and_press_fits.md
   section 1; tune with controller2_slide_mount's fit_coupon.
 
@@ -141,31 +159,34 @@ def build(
     shelf_tip: float = 8.0,
     b_depth: float = 40.0,      # B front to back (= rail length)
     web_t: float = 2.4,
-    groove_wall: float = 3.0,
+    groove_wall: float = 3.2,
     # Dovetail rails (on A)
     rail_h: float = 4.0,
     rail_base: float = 6.0,
     rail_angle: float = 30.0,
     rail_y: float = 18.5,
-    lead: float = 1.0,          # 45-degree lead-in on rail fronts and groove mouths
+    lead: float = 2.0,          # 45-degree lead-in on rail fronts and groove mouths (blind entry)
     # Snap fork (arms on A) and tooth (on B)
     arm_len: float = 26.0,      # arm root to hook land center
     arm_h: float = 2.25,        # arm thickness in Y (bending direction), 5 extrusion widths
     arm_above: float = 3.5,     # arm height above A's plate face (total b = wall_t + this)
-    arm_slot: float = 2.0,      # outer slot = over-deflection stop
+    arm_slot: float = None,     # outer slot = over-deflection stop (None: derived from deflection)
     root_r_in: float = 1.2,     # inner (tension side) root fillet
-    tip_gap: float = 0.5,       # arm tips to B's frame back face
-    hook: float = 1.3,          # hook height (undercut)
+    tip_gap: float = None,      # arm tips to B's frame back face (None: fit + 0.4)
+    hook: float = None,         # hook height (None: sized for engagement_target after play)
+    engagement_target: float = 0.75,
     hook_land: float = 0.6,
     lead_angle: float = 30.0,   # hook lead-in, from the insertion axis
     ret_angle: float = 45.0,    # retention face; <= 45 so B's tooth V prints unsupported
     tooth_w: float = 10.0,      # tooth width in Y
-    tooth_gap: float = 0.3,     # tooth side to arm inner face, seated (arms unloaded)
+    tooth_gap: float = None,    # tooth side to arm inner face, seated (None: play + 0.2)
     tooth_flat: float = 2.0,    # straight side length of the tooth
     notch_play: float = 0.3,    # tooth V to hook retention face along Z, seated
     tooth_wall_clear: float = 0.5,  # tooth bottom to A's back (wall) face
     foot_half: float = 2.0,     # foot under the tooth's V tip (supports it in B's print)
-    rib_ext: float = 4.0,       # arm's above-plate part continues this far past the root
+    rib_ext: float = 8.0,       # arm's above-plate part continues this far past the root
+    tab_w: float = 12.0,        # finger tab on B below the controller, at the rail line
+    tab_h: float = 12.0,
     E_mpa: float = 2200.0,      # printed PLA modulus (snap_fits.md: 2.2 to 3.3 GPa)
     mu: float = 0.5,            # printed-on-printed friction (unverified)
     # A (wall piece)
@@ -206,6 +227,18 @@ def build(
 
     gh = groove_half(xg)
 
+    # Dovetail play seen by the snap in Y: direct play plus the extra Y play that
+    # opens up when B shifts away from the wall in X.
+    y_play = fit / math.cos(math.radians(rail_angle)) + fit * t / math.cos(math.radians(rail_angle))
+    if tooth_gap is None:
+        tooth_gap = y_play + 0.2
+    if tip_gap is None:
+        tip_gap = fit + 0.4
+    if hook is None:
+        hook = round(tooth_gap + y_play + engagement_target, 2)
+    if arm_slot is None:
+        arm_slot = max(2.0, math.ceil(((hook - tooth_gap + y_play) * 1.3 + 0.3) * 20) / 20)
+
     # ---- snap geometry (d = distance from the fork center line y = yc) ----
     yc = cy
     tl, tr = math.tan(math.radians(lead_angle)), math.tan(math.radians(ret_angle))
@@ -223,7 +256,6 @@ def build(
     z_tback = z_vout + tooth_flat + hook / tl  # tooth back face
     x_bot = -W + tooth_wall_clear             # tooth bottom (reaches into A's window)
     x_arm = xa + arm_above                    # arm tops
-    y_play = fit / math.cos(math.radians(rail_angle))
     arm_b = wall_t + arm_above
     sn = snap_numbers(arm_len, arm_h, arm_b, hook, tooth_gap, y_play, arm_slot,
                       z_root - z_ft, E_mpa, mu, lead_angle, ret_angle)
@@ -247,8 +279,11 @@ def build(
     ch0, ch1 = rys[0] + gh + groove_wall, rys[1] - gh - groove_wall
     assert ch0 + 1 <= yc - d_slot and yc + d_slot <= ch1 - 1, "fork arms hit B's groove blocks"
     # Fork window leaves full-width bands for the two wall strips (no strip on the arms)
-    assert yc - d_slot - arm_slot / 2 >= strip_w + 1, "no room for the lower wall strip"
-    assert y_top - (yc + d_slot + arm_slot / 2) >= strip_w + 1, "no room for the upper wall strip"
+    assert yc - d_slot >= strip_w + 1, "no room for the lower wall strip"
+    assert y_top - (yc + d_slot) >= strip_w + 1, "no room for the upper wall strip"
+    # Tab sits below the controller; its center must be close to the rails' line of
+    # action so a push/pull there doesn't twist B (jams beyond ~L/(3 mu) ~ 24 mm).
+    assert (xb + tab_w / 2) - (xa + rail_h / 2) <= 10, "finger tab too far from the rail line"
     assert depth - a_relief >= 92 + 2, "wall plate shorter than a Large strip"
     # Arm tops clear B's web even with B pushed against the wall plate
     assert (xg - fit) - x_arm >= 0.3, "arm tops rub B's web"
@@ -256,8 +291,8 @@ def build(
     assert x_bot - fit > -W, "tooth would stick out of A's wall face"
     assert tooth_gap - y_play >= 0.1, "tooth touches an arm when seated (arms must sit unloaded)"
     # Tooth V grows from B's frame/foot (no floating start in B's print)
-    assert z_vtip <= frame_t, f"tooth V tip at z={z_vtip:.2f} floats above the frame"
-    assert foot_half >= (frame_t - z_vtip) * tr + 0.2, "foot narrower than the tooth at the frame"
+    foot_top = max(frame_t, z_vtip + 0.01)      # foot rises to meet the V tip if it sits behind the frame
+    assert foot_half >= (foot_top - z_vtip) * tr + 0.2, "foot narrower than the tooth where they meet"
     assert foot_half <= d_hook - 0.5, "foot too wide to pass between the hooks"
     assert z_ft - (frame_t + fit) >= 0.3, "arm tips touch B's frame/foot when B is pushed back"
     assert z_tback + 2 <= z_root, "tooth does not fit inside the fork"
@@ -268,6 +303,7 @@ def build(
     assert sn["eps_stop"] <= 0.020, f"strain at the slot stop {sn['eps_stop']:.4f} over 2.0%"
     assert arm_slot >= sn["defl_max"] * 1.3 + 0.3, "outer slot too narrow for the deflection"
     assert sn["engagement"] >= 0.5, f"engagement {sn['engagement']:.2f} mm after Y play too small"
+    assert tooth_gap - y_play >= 0.15, "seated gap after play too small for print error"
     assert ret_angle <= 45, "tooth V would overhang more than 45 deg in B's print"
     assert mu * tr < 1, "retention face would lock (not releasable by pulling)"
     assert arm_h >= 4 * 0.45, "arm thinner than 4 extrusion widths"
@@ -302,12 +338,21 @@ def build(
                (yc + tooth_w / 2 - hook, z_tback), (yc - tooth_w / 2 + hook, z_tback),
                (yc - tooth_w / 2, z_tback - c), (yc - tooth_w / 2, z_vout)]
         th = _yz_prism(pts[::-1], x_bot, xg + 0.01)
-        th += _box(x_bot, xb + 0.01, yc - foot_half, yc + foot_half, 0, frame_t)
+        th += _box(x_bot, xb + 0.01, yc - foot_half, yc + foot_half, 0, foot_top)
         return th
 
     # ---------------- B: front piece ----------------
     frame = _box(xb, W, 0, H, 0, frame_t)
     frame -= _box(xl, -xl, cut_b, cut_t, -1, frame_t + 1)
+    # Finger tab below the controller's bottom-left corner, at the rail line, so
+    # pushes and pulls don't twist B in the rails. Rounded bottom corners.
+    tab = _box(xb, xb + tab_w, -tab_h, 0.01, 0, frame_t)
+    r = 3.0
+    for cx in (xb + r, xb + tab_w - r):
+        tab -= _box(cx - r if cx < xb + tab_w / 2 else cx, cx if cx < xb + tab_w / 2 else cx + r,
+                    -tab_h - 0.01, -tab_h + r, -1, frame_t + 1)
+        tab += _zcyl(cx, -tab_h + r, 2 * r, 0, frame_t)
+    frame += tab
     for sx in (-1, 1):
         for sy in (-1, 1):
             frame -= _zcyl(sx * hx, cy + sy * hy, pilot_d, -1, frame_t + 1)
