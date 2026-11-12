@@ -23,16 +23,22 @@ Use / assembly
      calipers: 123 mm (template, photo) or 120 (website). At 120 the wall-side
      pilots break into B's side web (an assert stops the build): redesign first.
      Print layout="fit_test":
-     - B's flat frame: hold it on the controller to check the hole positions.
+     - A thin template of B's frame (1.2 mm): hold it on the controller to check
+       the hole positions.
      - A "spine" pair cut from the real parts: A's wall-side strip (plate, both
        rails, snap fork) and B's wall-side strip (grooves, tooth, mouth key, foot,
        wall-side screw bosses). Clamp spine A face down to a board (holding it in
        the hand lets the thin plate flex). Slide spine B on: it should slide
        without binding or wobble, then click. To measure pull-off, drive two box
        screws into spine B's bosses, tie a string between the heads, and pull with
-       a luggage scale (estimate 7 to 35 N, i.e. 0.7 to 3.5 kg).
-     - A pilot ladder (2.2 to 3.0 mm, notch at the 2.2 end): use it to pick
-       pilot_d for the box screws.
+       a luggage scale (estimate 7 to 35 N, i.e. 0.7 to 3.5 kg). Then check that
+       spine B still slides: the screws must not bulge the boss wall on the wall
+       side into A.
+     - A pilot ladder (2.2 to 3.0 mm, notch at the 2.2 end): rungs copy the real
+       bosses (7 mm boss on the 4 mm frame, 8 mm through-pilot opening at the bed,
+       one side trimmed to the real wall-side wall). Drive a box screw into each;
+       pick the smallest that doesn't split or bulge the thin side and holds
+       hand-tight; set pilot_d.
      Results: binds -> fit=0.16; wobbles > ~0.3 mm -> fit=0.08 (fit also resizes
      the hook and slots, so reprint both spines). No clear click or < ~7 N ->
      hook=1.6; too hard to push on or > ~40 N to pull off -> arm_h=1.8. Whitening
@@ -72,11 +78,11 @@ Use / assembly
   the lip crest so the cables can't ride back out. The front ~40 mm of the corner is
   taken by B and the controller, so cables can't pass the mount there.
   Ceiling strip: keep it >= 2 mm in from the flange's front and outer edges (B's
-  raised top sits 0.5 mm below the flange top and passes beside it). The flange's
-  strip face prints as a vertical wall; a
-  seam line may land on it (paint the seam elsewhere in PrusaSlicer if so). If the
-  cabinet ceiling runs above ~35 C, use PETG and VHB or Dual Lock instead (fine
-  layer lines), not on the bed; sand it flat before sticking the strip.
+  raised top sits 0.1 mm below the flange top and passes beside it). The flange's
+  strip face prints as a vertical wall (fine layer lines, not bed-smooth): sand it
+  flat before sticking the strip, and paint the seam elsewhere in PrusaSlicer if
+  one lands on it. If the cabinet ceiling runs above ~35 C, print in PETG and use
+  VHB or Dual Lock instead.
 
 Note: the code builds everything with the wall at -X and mirrors on output, so
 the coordinates in comments and asserts below refer to that internal frame.
@@ -125,7 +131,8 @@ In-use frame (mm) of the delivered parts (layout="assembled"):
   Y = up; y=0 is the bottom edge of the controller's front plate
   Z = depth, +Z back into the cabinet; z=0 is B's front face (seated)
 layout: "print", "assembled" (children [A, B] or [A, B, unit] with show_unit=True),
-"fit_test" (B's flat frame plus snap fork/tooth coupons).
+"fit_test" (frame template, spine pair, pilot ladder), or "cable_test" (two
+cable fingers and a fingertip).
 """
 import math
 
@@ -274,10 +281,11 @@ def build(
     ceiling_t: float = 3.0,
     ceiling_gap: float = 0.5,
     # Aesthetics
-    flush_top: bool = True,     # B's top shelf rises flush with A's ceiling flange past its end
+    flush_top: bool = True,     # B's top shelf rises to just below A's flange top past its end
     top_seam: float = 0.4,      # gap between A's flange end and B's raised top (>= 0.3 stays open)
-    top_drop: float = 0.5,      # B's raised top and façade sit this far below A's flange top, so
-                                # they never touch the ceiling strip (still reads as flush)
+    top_drop: float = 0.1,      # B's raised top and façade sit this far below A's flange top. With
+                                # the ceiling strip kept >= 2 mm in from the flange's front and outer
+                                # edges, neither ever passes under the strip; 0.1 hides A's top edge
     b_corner_r: float = 6.0,    # B's outer corners (matches the controller plate's corner radius)
     a_back_r: float = 3.0,      # A's back corners
     a_front_r: float = 2.0,     # A's front-bottom corner
@@ -380,7 +388,12 @@ def build(
     assert xw <= xl, "B's side web must sit on the frame's left leg"
     # The wall-side pilots run through B's side web: keep a real wall to its outer face.
     # (Fails loudly if the screw spacing turns out to be 120 mm: that needs a redesign.)
-    assert xw - (-hole_dx / 2 + pilot_d / 2) >= min_wall, "wall-side screw pilots break into B's side web"
+    assert xw - (-hole_dx / 2 + pilot_d / 2) >= min_wall, "too little of B's side web left beside the wall-side pilots"
+    # ...and keep a wall between those pilots and B's face against A (a screw can bulge it into A)
+    boss_wall_ws = (-hole_dx / 2 - pilot_d / 2) - (-plate_w / 2 + wall_t + fit)
+    assert boss_wall_ws >= 1.35, f"only {boss_wall_ws:.2f} mm of boss wall on the wall side (< 3 extrusion widths)"
+    assert top_seam >= 0.3, "top seam under 0.3 mm prints closed"
+    assert flush_top or not facade, "the façade needs flush_top (A's front is recessed behind it)"
     assert hx + boss_d / 2 <= W and hx - boss_d / 2 > body_w / 2, "right bosses must clear body and edge"
     assert shelf_t < body_b and H - shelf_t > body_t, "shelves hit the body"
     for yr in rys:
@@ -394,7 +407,6 @@ def build(
     # Each bullnose sits in the other part's filleted corner; the round must exceed the
     # fillet by more than the fit, or the corners touch before the flanks do.
     assert dove_round >= dove_fillet + fit + 0.1, "dovetail round must clear the mating fillet"
-    # Rounds eat r / tan(30 deg) off each flank end (60-degree corners); keep >= 2 mm of flank contact
     # Mated flank contact (in X): a round in a (90 - angle) corner eats r / tan(half
     # that angle) along the flank; a fillet in a (90 + angle) corner eats r / tan(half).
     ca = math.cos(math.radians(rail_angle))
@@ -555,10 +567,6 @@ def build(
         c = edge_chamfer
         x0c = -W - 1 if facade else x_flush - 1
         B -= _yz_prism([(yB_top - c, -0.01), (yB_top + 0.01, -0.01), (yB_top + 0.01, c)], x0c, W + 1)
-        # Chamfer the façade's back top edge too, so it can't catch a ceiling strip edge
-        if facade:
-            B -= _yz_prism([(yB_top - c, facade_t + 0.01), (yB_top + 0.01, facade_t + 0.01),
-                            (yB_top + 0.01, facade_t - c)], -W - 1, x_flush + 0.02)
     for sx in (-1, 1):
         for sy in (-1, 1):
             x, y = sx * hx, cy + sy * hy
@@ -644,25 +652,36 @@ def build(
         A -= _box(xa0, xa1, y0_, y1_, z0_, z1_) - _xcyl(yc_, zc_, r_, xa0 - 1, xa1 + 1)
     c = edge_chamfer
     zf = a_relief
-    # front top edge (plate + flange), along X
-    A -= _yz_prism([(y_top - c, zf - 0.01), (y_top + 0.01, zf - 0.01), (y_top + 0.01, zf + c)], xa0, xa1)
-    # flange's front-underside edge, along X
-    A -= _yz_prism([(y_ceil0 - 0.01, zf - 0.01), (y_ceil0 + c, zf - 0.01), (y_ceil0 - 0.01, zf + c)],
-                   xa + 0.5, xa1)
+    if not facade:   # with the façade these edges are inside the recess below
+        # front top edge (plate + flange), along X
+        A -= _yz_prism([(y_top - c, zf - 0.01), (y_top + 0.01, zf - 0.01), (y_top + 0.01, zf + c)], xa0, xa1)
+        # flange's front-underside edge, along X
+        A -= _yz_prism([(y_ceil0 - 0.01, zf - 0.01), (y_ceil0 + c, zf - 0.01), (y_ceil0 - 0.01, zf + c)],
+                       xa + 0.5, xa1)
     # plate's front inner edge, along Y (below the flange)
     A -= _xz_prism([(xa - c, zf - 0.01), (xa + 0.01, zf - 0.01), (xa + 0.01, zf + c)], -1, y_ceil0)
     if facade:
         # Step A's front back where B's façade covers it
         zr = facade_t + facade_gap
-        A -= _box(-W - 1, x_flush - top_seam + 1, H - facade_gap, y_top + 1, -1, zr)
+        A -= _box(-W - 1, x_flush - top_seam + 1, H - facade_ygap, y_top + 1, -1, zr)
         A -= _box(-W - 1, xa + 0.01, H - b_corner_r - facade_ygap, H, -1, zr)
         A -= _box(-W - 1, xa + 0.01, -1, b_corner_r + facade_ygap, -1, zr)
+        # small chamfer on the recessed front's top edge so no sliver shows above the façade
+        cr = 0.5
+        A -= _yz_prism([(y_top - cr, zr - 0.01), (y_top + 0.01, zr - 0.01), (y_top + 0.01, zr + cr)],
+                       -W - 1, x_flush - top_seam + 1)
+    # Relief in A's plate opposite B's wall-side bosses, so a screw that bulges the
+    # thin boss wall can't make B rub on A
+    for sy in (-1, 1):
+        yb = cy + sy * hy
+        A -= _box(xa - 0.3, xa + 0.01, yb - boss_d / 2 - 1, yb + boss_d / 2 + 1,
+                  frame_t - 0.5, frame_t + boss_h + 1)
 
     if layout == "fit_test":
         # B's flat frame (screw spacing and pilots) + a "spine" pair cut from the real
         # parts: A's wall-side strip (plate, rails, snap fork; no ceiling flange,
         # brace or cable fingers) and B's wall-side strip (grooves, tooth, mouth key,
-        # left bosses). Tests the dovetail fit, the click and the pull-off.
+        # wall-side bosses). Tests the dovetail fit, the click and the pull-off.
         z_end = max(b_depth, z_root + rib_ext + arm_above) + 1     # keep the arms' full ribs
         spine_a = A & _box(-W - 1, xa + max(rail_h, arm_above) + 1, -1, H, -1, z_end)
         spine_b = B & _box(-W - 1, xw + 0.5, -1, H, -1, b_depth + 1)   # full tooth, key, foot
@@ -671,11 +690,29 @@ def build(
         # notch marks the 2.2 end). Drive a box screw into each; pick the smallest
         # that takes the screw without splitting and holds hand-tight; set pilot_d.
         ladder_d = [2.2, 2.4, 2.6, 2.8, 3.0]
-        lad = _box(0, 8 * len(ladder_d) + 2, 0, 9, 0, 10)
+        # Each rung copies a real boss: a boss_d boss on the frame_t frame, pilot through
+        # both from the bed; the -X side is trimmed to the real wall-side boss wall.
+        half = boss_d / 2 + 2                                         # rung half-size (Y, +X)
+        step = half + (max(ladder_d) / 2 + boss_wall_ws) + 3           # rungs don't touch
+        lad = None
         for i, d_ in enumerate(ladder_d):
-            lad -= _zcyl(5 + 8 * i, 4.5, d_, 2, 11)
-        lad -= _box(-0.01, 1.5, 7.5, 9.01, -1, 11)                     # notch at the 2.2 end
-        f = _lay_flat(_m(frame))
+            cx_ = i * step
+            wall_cut = d_ / 2 + boss_wall_ws                          # hole center to the trimmed face
+            rung = _box(cx_ - wall_cut, cx_ + half, -half, half, 0, frame_t)
+            rung += _zcyl(cx_, 0, boss_d, frame_t - 0.01, frame_t + boss_h)
+            rung &= _box(cx_ - wall_cut, cx_ + 2 * half, -2 * half, 2 * half, -1, frame_t + boss_h + 1)
+            rung -= _zcyl(cx_, 0, d_, -1, frame_t + boss_h + 1)
+            lad = rung if lad is None else lad + rung
+        x_end = (len(ladder_d) - 1) * step + half
+        lad += _box(-(ladder_d[0] / 2 + boss_wall_ws), x_end, half - 1, half + 2, 0, 2)   # back bar
+        lad -= _box(-(ladder_d[0] / 2 + boss_wall_ws) - 1, 2, half + 0.5, half + 2.1, -1, 3)  # notch: 2.2 end
+        assert len(lad.solids()) == 1, "pilot ladder fell apart"
+        # Hole-position template: B's frame outline, 1.2 mm thick
+        tmpl = _box(xb, W, 0, H, 0, 1.2) - _box(xl, -xl, cut_b, cut_t, -1, 2)
+        for sx in (-1, 1):
+            for sy in (-1, 1):
+                tmpl -= _zcyl(sx * hx, cy + sy * hy, pilot_d, -1, 2)
+        f = _lay_flat(_m(tmpl))
         a_ = _lay_flat(Rot(0, 90, 0) * _m(spine_a))                     # wall face (+X) down
         b_ = _lay_flat(_m(spine_b))                                     # front face down
         y1 = f.bounding_box().max.Y + 10
