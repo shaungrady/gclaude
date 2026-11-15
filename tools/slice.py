@@ -9,7 +9,8 @@ Usage:
   --set fill_density=40% --set perimeters=4 --set support_material=1
 Note: the CLI re-arranges objects on the bed; model layouts don't decide where parts slice.
 --3mf also writes a project 3MF with the config embedded, to open in PrusaSlicer.
-Prints JSON with output paths and estimates parsed from the G-code.
+Prints JSON with output paths, estimates parsed from the G-code, and any PrusaSlicer
+print warnings (e.g. "Low bed adhesion"), which the GUI would show but the CLI doesn't fail on.
 """
 from __future__ import annotations
 
@@ -73,6 +74,22 @@ def gcode_config(gcode: Path) -> dict:
     return cfg
 
 
+def slicer_warnings(output: str) -> list[str]:
+    """PrusaSlicer's "print warning:" blocks (stability, supports needed, ...), one string
+    each. The CLI prints them but still exits 0, so they'd be lost otherwise."""
+    warnings, cur = [], None
+    for line in output.splitlines():
+        if re.match(r"\s*(print|object) warning:", line, re.I):
+            cur = [line.strip()]
+            warnings.append(cur)
+        elif cur is not None:
+            if re.match(r"\s*\d+ => ", line):      # next progress line ends the block
+                cur = None
+            elif line.strip():
+                cur.append(line.strip())
+    return [" / ".join(w) for w in warnings]
+
+
 def slice_model(model: Path, profile: Path = DEFAULT_PROFILE, overrides=(), project=False) -> dict:
     slicer = find_slicer()
     out_gcode = model.with_suffix(".gcode")
@@ -111,6 +128,9 @@ def slice_model(model: Path, profile: Path = DEFAULT_PROFILE, overrides=(), proj
             return result
         result["gcode"] = str(out_gcode)
         result["estimates"] = estimates(out_gcode)
+        warns = slicer_warnings(r.stdout + "\n" + r.stderr)
+        if warns:
+            result["warnings"] = warns
         if project:
             out_3mf = model.with_name(model.stem + "_project.3mf")
             out_3mf.unlink(missing_ok=True)

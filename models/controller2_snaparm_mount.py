@@ -688,7 +688,7 @@ def build(
         # wall-side bosses). Tests the dovetail fit, the click and the pull-off.
         z_end = max(b_depth, z_root + rib_ext + arm_above) + 1     # keep the arms' full ribs
         spine_a = A & _box(-W - 1, xa + max(rail_h, arm_above) + 1, -1, H, -1, z_end)
-        spine_b = B & _box(-W - 1, xw + 0.5, -1, H, -1, b_depth + 1)   # full tooth, key, foot
+        spine_b = B & _box(-W - 1, xw + 20, -1, H, -1, b_depth + 1)   # full tooth, key, foot; 20 mm of frame so the 40 mm tall spine doesn't tip
         assert len(spine_a.solids()) == 1 and len(spine_b.solids()) == 1, "a spine fell apart"
         # Pilot ladder: through holes 2.0 to 2.8 mm (the notch marks the 2.0 end).
         # Drive a box screw into each; pick the smallest
