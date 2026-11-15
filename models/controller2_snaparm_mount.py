@@ -34,8 +34,8 @@ Use / assembly
        a luggage scale (estimate 7 to 35 N, i.e. 0.7 to 3.5 kg). Then check that
        spine B still slides: the screws must not bulge the boss wall on the wall
        side into A.
-     - A pilot ladder (2.2 to 3.0 mm, notch at the 2.2 end): rungs copy the real
-       bosses (7 mm boss on the 4 mm frame, 8 mm through-pilot opening at the bed,
+     - A pilot ladder (2.0 to 2.8 mm, notch at the 2.0 end): rungs copy the real
+       bosses (7 mm boss on the 4 mm frame, 8.5 mm through-pilot open at the bed,
        one side trimmed to the real wall-side wall). Drive a box screw into each;
        pick the smallest that doesn't split or bulge the thin side and holds
        hand-tight; set pilot_d.
@@ -45,7 +45,10 @@ Use / assembly
      at the arm roots after ~10 cycles: stop, redesign.
      Optional: layout="cable_test" (two fingers + a fingertip) to try the real
      cables in the 4 mm slot.
-  1. Screw the controller to B on the bench.
+  1. Screw the controller to B on the bench with the box's wood screws (#4,
+     2.95 mm, 10 mm). The plate's holes are 5 mm, so if the screw heads are under
+     ~7 mm across, add M3 washers (7 mm OD) so the heads can't pull through. The
+     box's long machine screws aren't used.
   2. Stick A to the cabinet wall (two Large strips, along the plate in the bands
      above and below the fork window; keep the arms free) and to the ceiling.
   3. Slide B straight back onto A's rails until it clicks: push on the controller's
@@ -229,13 +232,14 @@ def build(
     cut_h: float = 71.0,
     hole_dx: float = 123.0,     # controller screw spacing (template + product photo)
     hole_dy: float = 67.0,
-    pilot_d: float = 2.6,       # M3 / #4 thread-forming; size to the real screws
+    pilot_d: float = 2.4,       # for the box's #4 wood screws (2.95 mm OD, 10 mm): 0.7-0.8 x OD
+                                # [derived] plus ~0.1 printed undersize; confirm with the ladder
     fit: float = 0.12,          # dovetail clearance normal to each face (baseline coupon)
     min_wall: float = 1.2,
     # B (front piece)
     frame_t: float = 4.0,
     boss_d: float = 7.0,
-    boss_h: float = 4.0,
+    boss_h: float = 4.5,        # frame + boss = 8.5 mm, so the 10 mm screw (8.4 mm past the plate) stays inside
     shelf_t: float = 3.0,
     shelf_tip: float = 8.0,
     b_depth: float = 40.0,      # B front to back (= rail length)
@@ -686,10 +690,10 @@ def build(
         spine_a = A & _box(-W - 1, xa + max(rail_h, arm_above) + 1, -1, H, -1, z_end)
         spine_b = B & _box(-W - 1, xw + 0.5, -1, H, -1, b_depth + 1)   # full tooth, key, foot
         assert len(spine_a.solids()) == 1 and len(spine_b.solids()) == 1, "a spine fell apart"
-        # Pilot ladder: 8 mm deep vertical holes, 2.2 to 3.0 mm (left to right; the
-        # notch marks the 2.2 end). Drive a box screw into each; pick the smallest
+        # Pilot ladder: through holes 2.0 to 2.8 mm (the notch marks the 2.0 end).
+        # Drive a box screw into each; pick the smallest
         # that takes the screw without splitting and holds hand-tight; set pilot_d.
-        ladder_d = [2.2, 2.4, 2.6, 2.8, 3.0]
+        ladder_d = [2.0, 2.2, 2.4, 2.6, 2.8]
         # Each rung copies a real boss: a boss_d boss on the frame_t frame, pilot through
         # both from the bed; the -X side is trimmed to the real wall-side boss wall.
         half = boss_d / 2 + 2                                         # rung half-size (Y, +X)
@@ -705,7 +709,7 @@ def build(
             lad = rung if lad is None else lad + rung
         x_end = (len(ladder_d) - 1) * step + half
         lad += _box(-(ladder_d[0] / 2 + boss_wall_ws), x_end, half - 1, half + 2, 0, 2)   # back bar
-        lad -= _box(-(ladder_d[0] / 2 + boss_wall_ws) - 1, 2, half + 0.5, half + 2.1, -1, 3)  # notch: 2.2 end
+        lad -= _box(-(ladder_d[0] / 2 + boss_wall_ws) - 1, 2, half + 0.5, half + 2.1, -1, 3)  # notch: 2.0 end
         assert len(lad.solids()) == 1, "pilot ladder fell apart"
         # Hole-position template: B's frame outline, 1.2 mm thick
         tmpl = _box(xb, W, 0, H, 0, 1.2) - _box(xl, -xl, cut_b, cut_t, -1, 2)

@@ -43,4 +43,5 @@ All ports (power, sensor, 2× USB-A fan) are on the **back** of the 112 × 68 bo
 | Screw hole diameter in the plate | 5.0 mm (larger than the template's 3.5 mm dot and the website's 3.0) |
 | Front plate | 134.85 x 79.0 mm, 1.6 mm thick |
 | Body behind the plate | 113.15 x 69.0 mm, 26 mm deep (centering on the plate not yet confirmed) |
-| Screws, port positions, plug sizes, cable diameters | not yet measured |
+| Mounting screws (box) | #4-size wood screws, 2.95 mm OD, 10 mm under the head; also machine screws 2.88 mm x 33.5 mm (panel mounting, not used by the printed mount) |
+| Port positions, plug sizes, cable diameters | not yet measured |
