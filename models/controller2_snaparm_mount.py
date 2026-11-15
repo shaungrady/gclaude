@@ -122,7 +122,7 @@ Key numbers (refs/joinery/snap_fits.md formulas, [derived] here)
   Dovetails: baseline values (fit 0.12, flank 30 deg), interlocking_and_press_fits.md
   section 1; tune with controller2_slide_mount's fit_coupon.
 
-Dimensions: refs/ac_infinity_controller2.md (manufacturer specs, not measured).
+Dimensions: plate, body and hole spacing measured on the owner's unit (refs/ac_infinity_controller2.md).
 
 In-use frame (mm) of the delivered parts (layout="assembled"):
   X = width, centered on the controller; x=+plate_w/2 is the cabinet wall side,
@@ -219,14 +219,14 @@ DERIVED: dict = {}   # values derived from None defaults by the last build() (re
 
 
 def build(
-    plate_w: float = 135.0,     # controller front plate
-    plate_h: float = 79.0,
-    plate_t: float = 2.0,       # controller plate thickness (unverified)
-    body_w: float = 112.0,      # controller body behind the plate
-    body_h: float = 68.0,
-    body_d: float = 26.0,       # 28 overall minus plate_t (unverified)
-    cut_w: float = 114.0,       # opening for the body (AC Infinity cut hole size)
-    cut_h: float = 70.0,
+    plate_w: float = 134.85,    # controller front plate (measured)
+    plate_h: float = 79.0,      # (measured)
+    plate_t: float = 1.6,       # (measured)
+    body_w: float = 113.15,     # controller body behind the plate (measured)
+    body_h: float = 69.0,       # (measured)
+    body_d: float = 26.0,       # behind the plate (measured)
+    cut_w: float = 115.0,       # opening for the body: ~0.9 mm per side around the measured body
+    cut_h: float = 71.0,
     hole_dx: float = 123.0,     # controller screw spacing (template + product photo)
     hole_dy: float = 67.0,
     pilot_d: float = 2.6,       # M3 / #4 thread-forming; size to the real screws

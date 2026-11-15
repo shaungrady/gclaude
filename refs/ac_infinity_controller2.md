@@ -34,3 +34,13 @@ Scaling the front view by the 135 mm plate width puts the hole centers ~123 × 6
 matching the template. The website's 120 mm is likely wrong. Use **123 × 67**.
 
 All ports (power, sensor, 2× USB-A fan) are on the **back** of the 112 × 68 body. Depth 28 mm overall.
+
+## Measured on the owner's unit (calipers)
+
+| Feature | Measured |
+| --- | --- |
+| Screw hole spacing | 123 x 67 mm (center to center); matches the template, not the website's 120 |
+| Screw hole diameter in the plate | 5.0 mm (larger than the template's 3.5 mm dot and the website's 3.0) |
+| Front plate | 134.85 x 79.0 mm, 1.6 mm thick |
+| Body behind the plate | 113.15 x 69.0 mm, 26 mm deep (centering on the plate not yet confirmed) |
+| Screws, port positions, plug sizes, cable diameters | not yet measured |
