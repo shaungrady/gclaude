@@ -27,22 +27,37 @@ Use / assembly
        the hole positions.
      - A "spine" pair cut from the real parts: A's wall-side strip (plate, both
        rails, snap fork) and B's wall-side strip (grooves, tooth, mouth key, foot,
-       wall-side screw bosses). Clamp spine A face down to a board (holding it in
-       the hand lets the thin plate flex). Slide spine B on: it should slide
-       without binding or wobble, then click. To measure pull-off, drive two box
-       screws into spine B's bosses, tie a string between the heads, and pull with
-       a luggage scale (estimate 7 to 35 N, i.e. 0.7 to 3.5 kg). Then check that
-       spine B still slides: the screws must not bulge the boss wall on the wall
-       side into A.
+       wall-side screw bosses, 20 mm of frame so it stands on the bed; the shelf
+       stubs are trimmed). Stick spine A to a board with the same Large strips, in
+       the same bands as on the wall (seated spine B covers almost all of spine A's
+       inner face, so it can't be clamped without the plate flexing). Slide spine
+       B on, pushing on its wall-side frame leg over the grooves at mid-height (not
+       on the frame tab ends: that far from the rails it racks and jams). It
+       should slide freely, then click; resistance only in the last ~6 mm is the
+       snap, not the dovetails. Designed play at fit 0.12: about 0.25 mm of
+       lift-off and 0.3 mm up/down, felt as a slight looseness, not a rattle.
+       To measure pull-off, drive two box screws into spine B's bosses with the
+       heads left ~1.6 mm proud (or two M3 washers under each: the controller
+       plate isn't there, so a bare screw goes deeper than in use and can strip
+       the boss), tie a string between the heads, and pull with a luggage scale
+       (estimate 8 to 27 N, i.e. 0.8 to 2.7 kg). Then check that spine B still
+       slides: the screws must not bulge the boss wall on the wall side into A.
      - A pilot ladder (2.2, 2.4, 2.6 mm, notch at the 2.2 end): rungs copy the real
        bosses (7 mm boss on the 4 mm frame, 8.5 mm through-pilot open at the bed,
-       one side trimmed to the real wall-side wall). Drive a box screw into each;
-       pick the smallest that doesn't split or bulge the thin side and holds
-       hand-tight; set pilot_d.
-     Results: binds -> fit=0.16; wobbles > ~0.3 mm -> fit=0.08 (fit also resizes
-     the hook and slots, so reprint both spines). No clear click or < ~7 N ->
-     hook=1.6; too hard to push on or > ~40 N to pull off -> arm_h=1.8. Whitening
-     at the arm roots after ~10 cycles: stop, redesign.
+       one side trimmed to the real wall-side wall). Drive a box screw into each
+       (heads ~1.6 mm proud, as above); pick the smallest that doesn't split or
+       bulge the thin side and holds hand-tight; set pilot_d. The rungs stand
+       alone, so they split a little more easily than the real bosses: this errs
+       toward a larger pilot, which is the safe side.
+     Results:
+       binds before the snap -> fit=0.16
+       visible rattle, or > ~0.5 mm lift-off at the rail (feeler gauge) -> fit=0.08
+         (fit also resizes the hook and slots, so reprint both spines)
+       slides freely until screws go in, then binds -> pilot_d + 0.2
+       no clear click -> hook=1.6
+       pull-off < ~7 N -> arm_h=2.6 (roughly doubles it)
+       too hard to push on, or > ~40 N to pull off -> arm_h=1.8
+       whitening at the arm roots after ~10 cycles -> stop, redesign
      Reprinting after a change: --set fit_parts='("spine_a", "spine_b")' skips the
      template and ladder. Slice the fit test with exactly the same profile and
      settings as the final print (layer height, perimeters, extrusion widths,
@@ -51,7 +66,8 @@ Use / assembly
      perimeter_speed=60 infill_speed=200 solid_infill_speed=200
      top_solid_infill_speed=50 external_perimeter_speed=25 (full mount ~6 h 15 m,
      fit test ~2 h 50 m; 35 instead of 25 saves ~24 min at some cost in looks).
-     Not 0.30 mm layers: several 0.3 mm clearances lie along the print's Z.
+     Use 0.15 or 0.20 mm layers, not 0.30: several 0.3 mm clearances lie along the
+     print's Z and would round to 0 or 0.6 mm.
      Optional: layout="cable_test" (two fingers + a fingertip) to try the real
      cables in the 4 mm slot.
   1. Screw the controller to B on the bench with the box's wood screws (#4,
@@ -683,14 +699,17 @@ def build(
         cr = 0.5
         A -= _yz_prism([(y_top - cr, zr - 0.01), (y_top + 0.01, zr - 0.01), (y_top + 0.01, zr + cr)],
                        -W - 1, x_flush - top_seam + 1)
-    # Relief in A's plate opposite B's wall-side bosses, so a screw that bulges the
-    # thin boss wall can't make B rub on A
+    # Relief in A's plate opposite B's wall-side pilots (frame and boss), so a screw
+    # that bulges the thin wall can't make B rub on A. Open at the front so a bulge
+    # clears it while sliding too; the opening hides behind the controller plate.
     for sy in (-1, 1):
         yb = cy + sy * hy
         A -= _box(xa - 0.3, xa + 0.01, yb - boss_d / 2 - 1, yb + boss_d / 2 + 1,
-                  frame_t - 0.5, frame_t + boss_h + 1)
+                  -1, frame_t + boss_h + 1)
 
     if layout == "fit_test":
+        if isinstance(fit_parts, str):          # --set fit_parts=ladder
+            fit_parts = (fit_parts,)
         # B's flat frame (screw spacing and pilots) + a "spine" pair cut from the real
         # parts: A's wall-side strip (plate, rails, snap fork; no ceiling flange,
         # brace or cable fingers) and B's wall-side strip (grooves, tooth, mouth key,
