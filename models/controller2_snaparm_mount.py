@@ -23,7 +23,7 @@ Use / assembly
      calipers: 123 mm (template, photo) or 120 (website). At 120 the wall-side
      pilots break into B's side web (an assert stops the build): redesign first.
      Print layout="fit_test":
-     - A thin template of B's frame (1.2 mm): hold it on the controller to check
+     - A thin template of B's frame (0.8 mm): hold it on the controller to check
        the hole positions.
      - A "spine" pair cut from the real parts: A's wall-side strip (plate, both
        rails, snap fork) and B's wall-side strip (grooves, tooth, mouth key, foot,
@@ -34,7 +34,7 @@ Use / assembly
        a luggage scale (estimate 7 to 35 N, i.e. 0.7 to 3.5 kg). Then check that
        spine B still slides: the screws must not bulge the boss wall on the wall
        side into A.
-     - A pilot ladder (2.0 to 2.8 mm, notch at the 2.0 end): rungs copy the real
+     - A pilot ladder (2.2, 2.4, 2.6 mm, notch at the 2.2 end): rungs copy the real
        bosses (7 mm boss on the 4 mm frame, 8.5 mm through-pilot open at the bed,
        one side trimmed to the real wall-side wall). Drive a box screw into each;
        pick the smallest that doesn't split or bulge the thin side and holds
@@ -43,6 +43,15 @@ Use / assembly
      the hook and slots, so reprint both spines). No clear click or < ~7 N ->
      hook=1.6; too hard to push on or > ~40 N to pull off -> arm_h=1.8. Whitening
      at the arm roots after ~10 cycles: stop, redesign.
+     Reprinting after a change: --set fit_parts='("spine_a", "spine_b")' skips the
+     template and ladder. Slice the fit test with exactly the same profile and
+     settings as the final print (layer height, perimeters, extrusion widths,
+     outer perimeter speed): the clearances depend on them.
+     Recommended for both: perimeters=4 fill_density=20% fill_pattern=grid
+     perimeter_speed=60 infill_speed=200 solid_infill_speed=200
+     top_solid_infill_speed=50 external_perimeter_speed=25 (full mount ~6 h 15 m,
+     fit test ~2 h 50 m; 35 instead of 25 saves ~24 min at some cost in looks).
+     Not 0.30 mm layers: several 0.3 mm clearances lie along the print's Z.
      Optional: layout="cable_test" (two fingers + a fingertip) to try the real
      cables in the 4 mm slot.
   1. Screw the controller to B on the bench with the box's wood screws (#4,
@@ -320,6 +329,7 @@ def build(
     strip_len: float = 92.0,
     layout: str = "print",
     show_unit: bool = False,
+    fit_parts: tuple = ("template", "spine_a", "spine_b", "ladder"),   # fit_test pieces to print
 ):
     W = plate_w / 2
     H = plate_h
@@ -688,11 +698,15 @@ def build(
         z_end = max(b_depth, z_root + rib_ext + arm_above) + 1     # keep the arms' full ribs
         spine_a = A & _box(-W - 1, xa + max(rail_h, arm_above) + 1, -1, H, -1, z_end)
         spine_b = B & _box(-W - 1, xw + 20, -1, H, -1, b_depth + 1)   # full tooth, key, foot; 20 mm of frame so the 40 mm tall spine doesn't tip
+        # Drop the top/bottom shelf stubs above the bosses: not in the slide or
+        # pull-off load path, and they're a third of the spine's print time.
+        for y0s, y1s in ((-1, shelf_t + 0.01), (H - shelf_t - 0.01, H + 5)):
+            spine_b -= _box(-W - 2, W, y0s, y1s, frame_t + boss_h, b_depth + 2)
         assert len(spine_a.solids()) == 1 and len(spine_b.solids()) == 1, "a spine fell apart"
-        # Pilot ladder: through holes 2.0 to 2.8 mm (the notch marks the 2.0 end).
+        # Pilot ladder: through holes 2.2 to 2.6 mm (the notch marks the 2.2 end).
         # Drive a box screw into each; pick the smallest
         # that takes the screw without splitting and holds hand-tight; set pilot_d.
-        ladder_d = [2.0, 2.2, 2.4, 2.6, 2.8]
+        ladder_d = [2.2, 2.4, 2.6]          # 0.7-0.8 x 2.95 mm OD [derived] + ~0.1 undersize
         # Each rung copies a real boss: a boss_d boss on the frame_t frame, pilot through
         # both from the bed; the -X side is trimmed to the real wall-side boss wall.
         half = boss_d / 2 + 2                                         # rung half-size (Y, +X)
@@ -709,10 +723,10 @@ def build(
             lad = rung if lad is None else lad + rung
         x_end = (len(ladder_d) - 1) * step + half
         lad += _box(-face, x_end, half - 1, half + 2, 0, 2)   # back bar
-        lad -= _box(-face - 1, 2, half + 0.5, half + 2.1, -1, 3)  # notch: 2.0 end
+        lad -= _box(-face - 1, 2, half + 0.5, half + 2.1, -1, 3)  # notch: 2.2 end
         assert len(lad.solids()) == 1, "pilot ladder fell apart"
-        # Hole-position template: B's frame outline, 1.2 mm thick
-        tmpl = _box(xb, W, 0, H, 0, 1.2) - _box(xl, -xl, cut_b, cut_t, -1, 2)
+        # Hole-position template: B's frame outline, 0.8 mm thick
+        tmpl = _box(xb, W, 0, H, 0, 0.8) - _box(xl, -xl, cut_b, cut_t, -1, 2)
         for sx in (-1, 1):
             for sy in (-1, 1):
                 tmpl -= _zcyl(sx * hx, cy + sy * hy, pilot_d, -1, 2)
@@ -723,7 +737,9 @@ def build(
         a_ = Pos(0, y1, 0) * a_
         b_ = Pos(a_.bounding_box().max.X + 10, y1, 0) * b_
         l_ = Pos(b_.bounding_box().max.X + 10, y1, 0) * _lay_flat(lad)
-        return Compound(children=[f, a_, b_, l_])
+        pieces = {"template": f, "spine_a": a_, "spine_b": b_, "ladder": l_}
+        assert fit_parts and set(fit_parts) <= set(pieces), f"fit_parts: pick from {list(pieces)}"
+        return Compound(children=[pieces[k] for k in pieces if k in fit_parts])
 
     if layout == "cable_test":
         # A short section of A with two cable fingers and the fingertip between them,
