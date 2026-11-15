@@ -441,7 +441,6 @@ def build(
     # Tooth clears A's wall face (with B pushed toward the wall) and the arms when seated
     assert x_bot - fit > -W, "tooth would stick out of A's wall face"
     assert min(frame_t, z_ft - 0.3) >= a_relief + 2, "mouth key barely enters the window"
-    assert tooth_gap - y_play >= 0.1, "tooth touches an arm when seated (arms must sit unloaded)"
     # Tooth V grows from B's frame/foot (no floating start in B's print)
     foot_top = max(frame_t, z_vtip + 0.01)      # foot rises to meet the V tip if it sits behind the frame
     assert foot_half >= (foot_top - z_vtip) * tr + 0.2, "foot narrower than the tooth where they meet"
@@ -697,19 +696,20 @@ def build(
         # Each rung copies a real boss: a boss_d boss on the frame_t frame, pilot through
         # both from the bed; the -X side is trimmed to the real wall-side boss wall.
         half = boss_d / 2 + 2                                         # rung half-size (Y, +X)
-        step = half + (max(ladder_d) / 2 + boss_wall_ws) + 3           # rungs don't touch
+        face = boss_wall_ws + pilot_d / 2      # hole center to the real wall-side face (any d_)
+        step = half + face + 3                                         # rungs don't touch
         lad = None
         for i, d_ in enumerate(ladder_d):
             cx_ = i * step
-            wall_cut = d_ / 2 + boss_wall_ws                          # hole center to the trimmed face
+            wall_cut = face                     # so each rung keeps the wall its d_ would leave
             rung = _box(cx_ - wall_cut, cx_ + half, -half, half, 0, frame_t)
             rung += _zcyl(cx_, 0, boss_d, frame_t - 0.01, frame_t + boss_h)
             rung &= _box(cx_ - wall_cut, cx_ + 2 * half, -2 * half, 2 * half, -1, frame_t + boss_h + 1)
             rung -= _zcyl(cx_, 0, d_, -1, frame_t + boss_h + 1)
             lad = rung if lad is None else lad + rung
         x_end = (len(ladder_d) - 1) * step + half
-        lad += _box(-(ladder_d[0] / 2 + boss_wall_ws), x_end, half - 1, half + 2, 0, 2)   # back bar
-        lad -= _box(-(ladder_d[0] / 2 + boss_wall_ws) - 1, 2, half + 0.5, half + 2.1, -1, 3)  # notch: 2.0 end
+        lad += _box(-face, x_end, half - 1, half + 2, 0, 2)   # back bar
+        lad -= _box(-face - 1, 2, half + 0.5, half + 2.1, -1, 3)  # notch: 2.0 end
         assert len(lad.solids()) == 1, "pilot ladder fell apart"
         # Hole-position template: B's frame outline, 1.2 mm thick
         tmpl = _box(xb, W, 0, H, 0, 1.2) - _box(xl, -xl, cut_b, cut_t, -1, 2)

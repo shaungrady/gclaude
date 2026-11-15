@@ -75,26 +75,40 @@ def gcode_config(gcode: Path) -> dict:
 
 
 def slicer_warnings(output: str) -> list[str]:
-    """PrusaSlicer's "print warning:" blocks (stability, supports needed, ...), one string
-    each. The CLI prints them but still exits 0, so they'd be lost otherwise."""
-    warnings, cur = [], None
+    """PrusaSlicer's "print warning:" blocks (stability, supports needed, empty layers),
+    one string each: "title: paragraph; paragraph", lines within a paragraph joined by
+    ", " (a paragraph is an object name and its issues, or an issue and its objects).
+    The CLI prints them but still exits 0, so they'd be lost otherwise. Pass one
+    stream at a time; a block ends at the next progress line, the export message, or
+    the end of the stream."""
+    blocks, cur = [], None
     for line in output.splitlines():
         if re.match(r"\s*(print|object) warning:", line, re.I):
-            cur = [line.strip()]
-            warnings.append(cur)
+            cur = [line.strip(), []]
+            blocks.append(cur)
         elif cur is not None:
-            if re.match(r"\s*\d+ => ", line):      # next progress line ends the block
+            if re.match(r"\s*(\d+ => |Slicing result exported)", line):
                 cur = None
-            elif line.strip():
-                cur.append(line.strip())
-    return [" / ".join(w) for w in warnings]
+            elif not line.strip():
+                if cur[-1]:
+                    cur.append([])                 # blank line separates paragraphs
+            else:
+                cur[-1].append(line.strip())
+    out = []
+    for title, *paras in blocks:
+        body = "; ".join(", ".join(p) for p in paras if p)
+        out.append(f"{title} {body}" if body else title)
+    return out
 
 
 def slice_model(model: Path, profile: Path = DEFAULT_PROFILE, overrides=(), project=False) -> dict:
     slicer = find_slicer()
     out_gcode = model.with_suffix(".gcode")
     out_gcode.unlink(missing_ok=True)          # never report a stale G-code
-    base = [slicer, "--load", str(profile)]
+    out_gcode.with_suffix(".gcode.tmp").unlink(missing_ok=True)   # left by a failed export
+    # Fail on invalid values (e.g. fill_pattern=gyroidd) instead of letting
+    # PrusaSlicer silently substitute another value.
+    base = [slicer, "--config-compatibility", "disable", "--load", str(profile)]
     # Validate every override before touching the filesystem.
     pairs = []
     for o in overrides:
@@ -116,6 +130,10 @@ def slice_model(model: Path, profile: Path = DEFAULT_PROFILE, overrides=(), proj
         cmd = base + ["--export-gcode", "--output", str(out_gcode), str(model)]
         r = subprocess.run(cmd, capture_output=True, text=True)
         result = {"cmd": cmd, "returncode": r.returncode, "overrides": dict(pairs)}
+        # Collected before any error return: warnings like "Empty layer" often explain a failure.
+        warns = slicer_warnings(r.stdout) + slicer_warnings(r.stderr)
+        if warns:
+            result["warnings"] = warns
         if r.returncode != 0 or not out_gcode.exists():
             result["error"] = (r.stderr or r.stdout)[-3000:]
             return result
@@ -128,9 +146,6 @@ def slice_model(model: Path, profile: Path = DEFAULT_PROFILE, overrides=(), proj
             return result
         result["gcode"] = str(out_gcode)
         result["estimates"] = estimates(out_gcode)
-        warns = slicer_warnings(r.stdout + "\n" + r.stderr)
-        if warns:
-            result["warnings"] = warns
         if project:
             out_3mf = model.with_name(model.stem + "_project.3mf")
             out_3mf.unlink(missing_ok=True)
