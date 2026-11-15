@@ -5,7 +5,7 @@ snap arms bend within A's layers.
 Concept
   A (wall piece): wall plate (hook-and-loop strips on the cabinet's left wall),
     ceiling flange (one strip on the ceiling), two dovetail rails running front to
-    back (copied from controller2_slide_mount), and between the rails a snap fork:
+    back, and between the rails a snap fork:
     two arms cut free from the plate by a window, each a 2.25 x 6.5 mm beam running
     front to back, rooted at the back, with a hook on its inner face. The arms flex
     up and down (in-use Y), parallel to the cabinet wall.
@@ -132,7 +132,7 @@ Key numbers (refs/joinery/snap_fits.md formulas, [derived] here)
   the dovetail play (including the extra Y play when B shifts in X), and the hook
   height is sized for >= 0.75 mm engagement after that play.
   Dovetails: baseline values (fit 0.12, flank 30 deg), interlocking_and_press_fits.md
-  section 1; tune with controller2_slide_mount's fit_coupon.
+  section 1; tune with layout="fit_test".
 
 Dimensions: plate, body and hole spacing measured on the owner's unit (refs/ac_infinity_controller2.md).
 
